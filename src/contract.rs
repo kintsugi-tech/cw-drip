@@ -1,11 +1,14 @@
+use std::collections::HashMap;
+use std::ptr::addr_of;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary};
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, VotingPowerAtHeightReponse};
-use crate::state::{Config, CONFIG};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, VotingPowerAtHeightReponse, AddParticipantResponse};
+use crate::state::{Config, CONFIG, PARTICIPANTS};
 
 
 // version info for migration info
@@ -37,17 +40,21 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-   match msg {}
+   match msg {
+    ExecuteMsg::Participate {} => execute_add_participant(deps, info),
+   }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::GetConfig {} => {to_binary(&query_config(deps)?)
+        }
         QueryMsg::TotalPowerAtHeight {height} => {
             to_binary(&query_total_power_at_height(deps, env, height)?)
         }
@@ -55,12 +62,38 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+pub fn execute_add_participant(
+    deps: DepsMut,
+    info: MessageInfo,
+) -> Result<Response, ContractError>{
+    if PARTICIPANTS.has(deps.storage, &info.sender) {
+        return Err(ContractError::AlreadyParticipant {});
+    };
+
+    let initial_shares = HashMap::from(
+        [("ujuno".to_string(), Uint128::zero())]
+    );
+    PARTICIPANTS.save(deps.storage, &info.sender, &initial_shares)?;
+
+    let res = Response::new()
+        .add_attribute("action", "add_participant")
+        .add_attribute("addess", info.sender);
+    Ok(res)
+
+
+}
+
+pub fn query_config(deps: Deps) -> StdResult<Config> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(config)
+}
+
 pub fn query_total_power_at_height(
     deps: Deps,
     env: Env,
     height: Option<u64>
 ) -> StdResult<TotalPowerAtHeightResponse> {
-    let config = CONFIG.load(deps.storage)?;
+    let config = query_config(deps)?;
     let denom = deps.querier.query_bonded_denom()?;
     let power = deps.querier.query_balance(config.staking_module_address, denom)?;
     Ok(TotalPowerAtHeightResponse { 
@@ -68,6 +101,3 @@ pub fn query_total_power_at_height(
         height: height.unwrap_or(env.block.height)}) 
 }
 
-
-#[cfg(test)]
-mod tests {}

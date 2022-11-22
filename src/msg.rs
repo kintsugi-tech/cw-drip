@@ -1,6 +1,8 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Uint128, Addr};
 use cw_utils::Duration;
+
+use crate::state::Config;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -10,11 +12,15 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-pub enum ExecuteMsg {}
+pub enum ExecuteMsg {
+    Participate {},
+}
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
+    #[returns(Config)]
+    GetConfig {},
     #[returns(VotingPowerAtHeightReponse)]
     VotingPowerAtHeight {
         address: String,
@@ -38,6 +44,10 @@ pub struct TotalPowerAtHeightResponse {
     pub height: u64
 }
 
-
+#[cw_serde]
+pub struct AddParticipantResponse {
+    pub address: Addr,
+    pub eligible: bool,
+}
 
 
