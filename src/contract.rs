@@ -1,14 +1,10 @@
-use std::collections::HashMap;
-use std::ptr::addr_of;
-
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
+use cosmwasm_std::{entry_point, Addr};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, VotingPowerAtHeightReponse, AddParticipantResponse};
-use crate::state::{Config, CONFIG, PARTICIPANTS};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, VotingPowerAtHeightReponse, AddParticipantResponse, TokenInfo};
+use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, CheckedTokenInfo, PARTICIPANTS, DRIP_TOKENS};
 
 
 // version info for migration info
@@ -26,6 +22,7 @@ pub fn instantiate(
 
     let staking_address = deps.api.addr_validate(&msg.staking_module_address)?;
 
+    // The contract owner is always the address who send the InstantiateMsg
     let config = Config {
         owner: info.sender,
         staking_module_address: staking_address,
@@ -33,9 +30,10 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
+    PARTICIPANTS.save(deps.storage, &Vec::new())?;
+    DRIP_TOKENS.save(deps.storage, &Vec::new())?;
 
     Ok(Response::default())
-
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -47,14 +45,20 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
    match msg {
     ExecuteMsg::Participate {} => execute_add_participant(deps, info),
+    ExecuteMsg::CreateDripPool { 
+        token_info, 
+        min_staking_amount, 
+        epochs_number 
+    } => execute_create_drip_pool(deps, info, token_info, min_staking_amount, epochs_number)
    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetConfig {} => {to_binary(&query_config(deps)?)
-        }
+        QueryMsg::GetConfig {} => {to_binary(&query_config(deps)?)}
+        QueryMsg::Participants {} => {to_binary(&query_participants(deps)?)}
+        QueryMsg::DripTokens {} => {to_binary(&query_drip_tokens(deps)?)}
         QueryMsg::TotalPowerAtHeight {height} => {
             to_binary(&query_total_power_at_height(deps, env, height)?)
         }
@@ -62,25 +66,69 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+fn query_drip_tokens(deps: Deps) -> StdResult<Vec<String>> {
+    let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
+    Ok(drip_tokens)
+}
+
+fn query_participants(deps: Deps) -> StdResult<Vec<Addr>> {
+    let participants = PARTICIPANTS.load(deps.storage)?;
+    Ok(participants)
+}
+
 pub fn execute_add_participant(
     deps: DepsMut,
     info: MessageInfo,
 ) -> Result<Response, ContractError>{
-    if PARTICIPANTS.has(deps.storage, &info.sender) {
+    
+    let staking_denom = deps.querier.query_bonded_denom()?;
+
+    if PARTICIPANTS_SHARES.has(deps.storage, (staking_denom.clone(), &info.sender)) {
         return Err(ContractError::AlreadyParticipant {});
     };
 
-    let initial_shares = HashMap::from(
-        [("ujuno".to_string(), Uint128::zero())]
+    PARTICIPANTS.update(deps.storage, |participants| -> StdResult<_> {
+        Ok(participants)
+        }   
     );
-    PARTICIPANTS.save(deps.storage, &info.sender, &initial_shares)?;
+    // Initialize participant with zero shares of the staking token.
+    PARTICIPANTS_SHARES.save(deps.storage, (staking_denom.clone(), &info.sender), &Uint128::zero())?;
 
     let res = Response::new()
         .add_attribute("action", "add_participant")
-        .add_attribute("addess", info.sender);
+        .add_attribute("addess", info.sender)
+        .add_attribute("denom", staking_denom)
+        .add_attribute("shares", Uint128::zero().to_string());
     Ok(res)
 
 
+}
+
+pub fn execute_create_drip_pool(
+    deps: DepsMut,
+    info: MessageInfo,
+    token_info: TokenInfo,
+    min_staking_amount: Uint128,
+    epochs_number: u64, 
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.owner != info.sender {
+        return Err(ContractError::Unauthorized {})
+    };
+
+    let drip_token = token_info.into_checked(deps.as_ref())?;
+    let drip_pool = DripPool {
+       drip_token: drip_token.clone(),
+       actual_amount: drip_token.get_initial_amount(),
+       issued_shares: Uint128::zero(),
+       min_staking_amount,
+       epochs_number,
+       current_epoch: 0u64,
+    };
+
+     
+    
+    todo!()
 }
 
 pub fn query_config(deps: Deps) -> StdResult<Config> {

@@ -13,4 +13,7 @@ pub enum ContractError {
 
     #[error("AlreadyPartecipant")]
     AlreadyParticipant {},
+
+    #[error("ZeroTokenPool")]
+    ZeroTokenPool {},
 }
