@@ -14,6 +14,12 @@ pub enum ContractError {
     #[error("AlreadyPartecipant")]
     AlreadyParticipant {},
 
+    #[error("DripAlreadyExists")]
+    DripPoolAlreadyExists {},
+
+    #[error("NoFundedContract")]
+    NoFundedContract {},
+
     #[error("ZeroTokenPool")]
     ZeroTokenPool {},
 }

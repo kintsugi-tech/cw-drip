@@ -1,6 +1,6 @@
 use crate::contract::{instantiate, query};
-use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ConfigResponse};
-use crate::state::{Config, PARTICIPANTS};
+use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ConfigResponse, ParticipantsResponse, DripPoolsResponse, TokenInfo, DripTokensResponse};
+use crate::state::{Config, PARTICIPANTS, DripPool, CheckedTokenInfo};
 use cosmwasm_std::Empty;
 use cosmwasm_std::{
     Validator, FullDelegation, OwnedDeps, Deps, Env, Addr, from_binary, Uint128,
@@ -50,7 +50,7 @@ fn setup_dependencies(
 }
 
 fn get_config(deps: Deps, env: Env) -> Config {
-    let msg = QueryMsg::GetConfig {};
+    let msg = QueryMsg::Config {};
     let bin = query(deps, env, msg).unwrap();
     from_binary(&bin).unwrap()
 }
@@ -87,6 +87,23 @@ fn create_default_validator(name: &str) -> Validator {
     }
 }
 
+fn query_drip_tokens (app: &App, drip_contract_addr: Addr) -> DripTokensResponse {
+    let resp: DripTokensResponse= app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr, &QueryMsg::DripTokens {})
+        .unwrap();
+    resp
+}
+
+fn query_drip_pools(app: &App, drip_contract_addr: Addr) -> DripPoolsResponse {
+    let resp: DripPoolsResponse = app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr.clone(), &QueryMsg::DripPools {})
+        .unwrap();
+    resp
+}
+
+
 #[test]
 fn test_instantiate() {
     let mut deps = setup_dependencies(vec![], vec![]);
@@ -94,6 +111,7 @@ fn test_instantiate() {
     let info = mock_info(SENDER, &[]);
     let msg = InstantiateMsg {
         staking_module_address: STAKING_MODULE.to_string(),
+        min_staking_amount: Uint128::zero(),
         epoch_duration: Duration::Height(100)
     };
     let _init_res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -104,6 +122,7 @@ fn test_instantiate() {
         Config {
             owner: Addr::unchecked(SENDER),
             staking_module_address: Addr::unchecked(STAKING_MODULE),
+            min_staking_amount: Uint128::zero(),
             epoch_duration: Duration::Height(100)
         }
     );
@@ -120,13 +139,14 @@ fn test_instantiate() {
 }
 
 #[test]
-fn test_add_participant() {
-    let mut app = App::default();
+fn test_create_drip_pool () {
+     let mut app = App::default();
 
     let drip_contract_code_id = app.store_code(drip_contract());
 
     let instantiate_msg = InstantiateMsg {
         staking_module_address: STAKING_MODULE.to_string(),
+        min_staking_amount: Uint128::zero(),
         epoch_duration: Duration::Height(100)
     };
 
@@ -138,7 +158,76 @@ fn test_add_participant() {
         "drip", 
         None,
     ).unwrap();
+  
+    let resp = query_drip_pools(&app, drip_contract_addr.clone());
+    assert_eq!(resp.drip_pools.len(), 0);
+    
+    let resp = query_drip_tokens(&app, drip_contract_addr.clone()); 
+    assert_eq!(resp.drip_tokens.len(), 0);
 
+    let token_info = TokenInfo::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000_000) }; 
+    let drip_token = CheckedTokenInfo::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000_000) }; 
+
+    app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::CreateDripPool { 
+            token_info: token_info.clone(),
+            epochs_number: 10u64 }, 
+        &[]
+    )
+    .unwrap();
+    
+    let resp = query_drip_pools(&app, drip_contract_addr.clone());
+    assert_eq!(resp.drip_pools.len(), 1);
+    assert_eq!(
+        resp.drip_pools[0], 
+        DripPool {
+           drip_token: drip_token.clone(),
+           actual_amount: drip_token.clone().get_initial_amount(),
+           epochs_number: 10u64,
+           current_epoch: 0,
+           issued_shares: Uint128::zero(),
+        }
+    );
+    
+    let resp = query_drip_tokens(&app, drip_contract_addr.clone()); 
+    assert_eq!(resp.drip_tokens.len(), 1);
+    assert_eq!(resp.drip_tokens[0], "ujuno".to_string())
+
+
+}
+
+#[test]
+fn test_add_participant() {
+    let mut app = App::default();
+
+    let drip_contract_code_id = app.store_code(drip_contract());
+
+    let instantiate_msg = InstantiateMsg {
+        staking_module_address: STAKING_MODULE.to_string(),
+        min_staking_amount: Uint128::zero(),
+        epoch_duration: Duration::Height(100)
+    };
+
+    let drip_contract_addr = app.instantiate_contract(
+        drip_contract_code_id, 
+        Addr::unchecked(SENDER), 
+        &instantiate_msg, 
+        &[], 
+        "drip", 
+        None,
+    ).unwrap();
+   
+    // Check empty participants vector before any execution
+    let resp: ParticipantsResponse = app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr.clone(), &QueryMsg::Participants {})
+        .unwrap();
+
+    assert_eq!(resp.participants.len(), 0);
+
+    // Add a participant and check for correct vector update
     app.execute_contract(
         Addr::unchecked(SENDER), 
         drip_contract_addr.clone(), 
@@ -146,13 +235,13 @@ fn test_add_participant() {
         &[]
     )
     .unwrap();
-
-    participants: ConfigResponse = app
+   
+    let resp: ParticipantsResponse = app
         .wrap()
-        .query_wasm_smart(drip_contract_addr, &QueryMsg::GetConfig {  })
-        .unwrap()
+        .query_wasm_smart(drip_contract_addr, &QueryMsg::Participants {})
+        .unwrap();
 
-        
+    assert_eq!(resp.participants.len(), 1);
 
 }
 
@@ -170,6 +259,7 @@ fn test_total_power_at_height() {
     let info = mock_info(SENDER, &[]);
     let msg = InstantiateMsg {
         staking_module_address: STAKING_MODULE.to_string(),
+        min_staking_amount: Uint128::zero(),
         epoch_duration: Duration::Height(100)
     };
     let _init_res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
