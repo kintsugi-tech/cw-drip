@@ -14,9 +14,8 @@ pub struct InstantiateMsg {
     pub epoch_duration: Duration
 }
 
-//TODO: we can use directly Addr in CW20 for validation?
 #[cw_serde]
-pub enum TokenInfo {
+pub enum DripToken {
     Native {
         denom: String,
         initial_amount: Uint128,
@@ -31,7 +30,7 @@ pub enum TokenInfo {
 pub enum ExecuteMsg {
     Participate {},
     CreateDripPool {
-        token_info: TokenInfo,
+        token_info: DripToken,
         epochs_number: u64,
     }
 }

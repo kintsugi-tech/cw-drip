@@ -1,12 +1,14 @@
+use crate::ContractError;
 use crate::contract::{instantiate, query};
-use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ConfigResponse, ParticipantsResponse, DripPoolsResponse, TokenInfo, DripTokensResponse};
-use crate::state::{Config, PARTICIPANTS, DripPool, CheckedTokenInfo};
-use cosmwasm_std::Empty;
+use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ParticipantsResponse, DripPoolsResponse, DripToken, DripTokensResponse};
+use crate::state::{Config, CheckedDripToken};
+use cosmwasm_std::{Empty, Coin};
 use cosmwasm_std::{
     Validator, FullDelegation, OwnedDeps, Deps, Env, Addr, from_binary, Uint128,
     testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage}
     };
-use cw_multi_test::{Contract, ContractWrapper, App, Executor};
+use cw20::Cw20Coin;
+use cw_multi_test::{Contract, ContractWrapper, App, Executor, SudoMsg, BankSudo};
 use cw_utils::Duration;
 
 const DENOM: &str = "ujuno";
@@ -17,11 +19,11 @@ const VAL1: &str = "val1";
 const VAL2: &str = "val2";
 const VAL3: &str = "val3";
 
-const PAR1: &str ="participant1";
-const PAR2: &str ="participant2";
-const PAR3: &str ="participant3";
+const PAR1: &str = "participant1";
+const PAR2: &str = "participant2";
+const PAR3: &str = "participant3";
 
-
+// Create a mock drip contract
 fn drip_contract() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
         crate::contract::execute,
@@ -31,6 +33,7 @@ fn drip_contract() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
+// Create a mock cw20 token contract
 fn cw20_contract() -> Box<dyn Contract<Empty>> {
     let contract = ContractWrapper::new(
         cw20_base::contract::execute,
@@ -40,6 +43,7 @@ fn cw20_contract() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
+// Helper function to easily mock staking module
 fn setup_dependencies(
     validators: Vec<Validator>,
     delegations: Vec<FullDelegation>
@@ -78,6 +82,7 @@ fn get_total_power_at_height(
     from_binary(&bin).unwrap()
 }
 
+// Helper function to create a Validator structure
 fn create_default_validator(name: &str) -> Validator {
     return Validator {
         address: name.to_string(),
@@ -87,6 +92,7 @@ fn create_default_validator(name: &str) -> Validator {
     }
 }
 
+// Query for getting the vector of drip tokens
 fn query_drip_tokens (app: &App, drip_contract_addr: Addr) -> DripTokensResponse {
     let resp: DripTokensResponse= app
         .wrap()
@@ -95,6 +101,7 @@ fn query_drip_tokens (app: &App, drip_contract_addr: Addr) -> DripTokensResponse
     resp
 }
 
+// Query for getting all the drip pools
 fn query_drip_pools(app: &App, drip_contract_addr: Addr) -> DripPoolsResponse {
     let resp: DripPoolsResponse = app
         .wrap()
@@ -139,10 +146,11 @@ fn test_instantiate() {
 }
 
 #[test]
-fn test_create_drip_pool () {
-     let mut app = App::default();
-
+fn test_create_drip_pool_no_funded_contract () {
+    let mut app = App::default();
+    
     let drip_contract_code_id = app.store_code(drip_contract());
+    let cw20_contract_code_id = app.store_code(cw20_contract());
 
     let instantiate_msg = InstantiateMsg {
         staking_module_address: STAKING_MODULE.to_string(),
@@ -158,45 +166,230 @@ fn test_create_drip_pool () {
         "drip", 
         None,
     ).unwrap();
-  
+
+    // No drip pool in storage
     let resp = query_drip_pools(&app, drip_contract_addr.clone());
     assert_eq!(resp.drip_pools.len(), 0);
-    
+   
+    // No drip token in storage
     let resp = query_drip_tokens(&app, drip_contract_addr.clone()); 
     assert_eq!(resp.drip_tokens.len(), 0);
 
-    let token_info = TokenInfo::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000_000) }; 
-    let drip_token = CheckedTokenInfo::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000_000) }; 
+    // Native token variables
+    let native_token: DripToken = DripToken::Native {
+        denom: "ujuno".to_string(), 
+        initial_amount: Uint128::new(1_000_000) 
+    }; 
+    let checked_native_token: CheckedDripToken = CheckedDripToken::Native { 
+        denom: "ujuno".to_string(), 
+        initial_amount: Uint128::new(1_000_000) 
+    };
 
-    app.execute_contract(
+    // Test no funded contract
+    let err: ContractError = app.execute_contract(
         Addr::unchecked(SENDER), 
         drip_contract_addr.clone(), 
         &ExecuteMsg::CreateDripPool { 
-            token_info: token_info.clone(),
+            token_info: native_token.clone(),
+            epochs_number: 10u64 }, 
+        &[]
+    )
+    .unwrap_err()
+    .downcast()
+    .unwrap();
+
+    assert_eq!(err, ContractError::NoFundedContract {token: checked_native_token.clone().get_token(), amount: checked_native_token.clone().get_initial_amount()});
+
+    // Test cw20 without balance
+    let instantiate_msg = &cw20_base::msg::InstantiateMsg {
+        name: "stepyt coin".to_string(),
+        symbol: "PYT".to_string(),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: None,
+        marketing: None,
+    };
+
+    let cw20_contract_addr = app.instantiate_contract(
+            cw20_contract_code_id,
+            Addr::unchecked(SENDER),
+            instantiate_msg,
+            &[],
+            "coin",
+            None,
+        )
+        .unwrap();
+   
+        
+    let cw20_token = DripToken::CW20 { 
+            address: cw20_contract_addr.clone().to_string(), 
+            initial_amount: Uint128::new(1_000_000) 
+    };
+
+    let checked_cw20_token = CheckedDripToken::CW20 { 
+        symbol: "PYT".to_string(), 
+        address: cw20_contract_addr.clone(), 
+        initial_amount: Uint128::new(1_000_000) 
+    }; 
+    
+    let err: ContractError = app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::CreateDripPool { 
+            token_info: cw20_token.clone(),
+            epochs_number: 10u64 }, 
+        &[]
+    )
+    .unwrap_err()
+    .downcast()
+    .unwrap();
+    
+    assert_eq!(err, ContractError::NoFundedContract {token: checked_cw20_token.clone().get_token(), amount: checked_cw20_token.clone().get_initial_amount()});
+
+  
+}
+
+#[test]
+fn test_create_drip_pool_funded_contract () {
+    let mut app = App::default();
+    
+    let drip_contract_code_id = app.store_code(drip_contract());
+    let cw20_contract_code_id = app.store_code(cw20_contract());
+
+    let instantiate_msg = InstantiateMsg {
+        staking_module_address: STAKING_MODULE.to_string(),
+        min_staking_amount: Uint128::zero(),
+        epoch_duration: Duration::Height(100)
+    };
+
+    let drip_contract_addr = app.instantiate_contract(
+        drip_contract_code_id, 
+        Addr::unchecked(SENDER), 
+        &instantiate_msg, 
+        &[], 
+        "drip", 
+        None,
+    ).unwrap();
+
+    let instantiate_msg = &cw20_base::msg::InstantiateMsg {
+        name: "stepyt coin".to_string(),
+        symbol: "PYT".to_string(),
+        decimals: 6,
+        initial_balances: vec![Cw20Coin {
+            address: drip_contract_addr.to_string(),
+            amount: Uint128::new(1_000_000),
+        }],
+        mint: None,
+        marketing: None,
+    };
+
+    let cw20_contract_addr = app.instantiate_contract(
+            cw20_contract_code_id,
+            Addr::unchecked(SENDER),
+            instantiate_msg,
+            &[],
+            "coin",
+            None,
+        )
+        .unwrap();
+
+    // Native token variables
+    let native_token: DripToken = DripToken::Native {
+        denom: "ujuno".to_string(), 
+        initial_amount: Uint128::new(1_000_000) 
+    }; 
+    let checked_native_token: CheckedDripToken = CheckedDripToken::Native { 
+        denom: "ujuno".to_string(), 
+        initial_amount: Uint128::new(1_000_000) 
+    };
+
+    app.sudo(SudoMsg::Bank(BankSudo::Mint {
+        to_address: drip_contract_addr.to_string(),
+        amount: vec![Coin {
+            amount: checked_native_token.clone().get_initial_amount(),
+            denom: checked_native_token.clone().get_token(),
+        }],
+    }))
+    .unwrap();
+    
+    let _resp = app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::CreateDripPool { 
+            token_info: native_token.clone(),
             epochs_number: 10u64 }, 
         &[]
     )
     .unwrap();
-    
+
+    // No drip pool in storage
     let resp = query_drip_pools(&app, drip_contract_addr.clone());
     assert_eq!(resp.drip_pools.len(), 1);
-    assert_eq!(
-        resp.drip_pools[0], 
-        DripPool {
-           drip_token: drip_token.clone(),
-           actual_amount: drip_token.clone().get_initial_amount(),
-           epochs_number: 10u64,
-           current_epoch: 0,
-           issued_shares: Uint128::zero(),
-        }
-    );
-    
+   
+    // No drip token in storage
     let resp = query_drip_tokens(&app, drip_contract_addr.clone()); 
     assert_eq!(resp.drip_tokens.len(), 1);
-    assert_eq!(resp.drip_tokens[0], "ujuno".to_string())
 
+    let err: ContractError = app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::CreateDripPool { 
+            token_info: native_token.clone(),
+            epochs_number: 10u64 }, 
+        &[]
+    )
+    .unwrap_err()
+    .downcast()
+    .unwrap();
+
+    assert_eq!(err, ContractError::DripPoolAlreadyExists {});
+
+    // cw20 token variables
+    let cw20_token = DripToken::CW20 { 
+        address: cw20_contract_addr.clone().to_string(), 
+        initial_amount: Uint128::new(1_000_000) 
+    }; 
+    
+    // Test non existing cw20
+    let _resp = app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::CreateDripPool { 
+            token_info: cw20_token.clone(),
+            epochs_number: 10u64 }, 
+        &[]
+    )
+    .unwrap();
+
+    // No drip pool in storage
+    let resp = query_drip_pools(&app, drip_contract_addr.clone());
+    assert_eq!(resp.drip_pools.len(), 2);
+   
+    // No drip token in storage
+    let resp = query_drip_tokens(&app, drip_contract_addr.clone()); 
+    assert_eq!(resp.drip_tokens.len(), 2);
+    assert_eq!(
+        resp.drip_tokens,
+        vec![checked_native_token.clone().get_token(), cw20_contract_addr.clone().to_string()]
+    );
+
+    let err: ContractError = app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::CreateDripPool { 
+            token_info: cw20_token.clone(),
+            epochs_number: 10u64 }, 
+        &[]
+    )
+    .unwrap_err()
+    .downcast()
+    .unwrap();
+
+    assert_eq!(err, ContractError::DripPoolAlreadyExists {});
 
 }
+
+
 
 #[test]
 fn test_add_participant() {

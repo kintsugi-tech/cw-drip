@@ -1,9 +1,10 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128, Deps, MessageInfo, Env};
+use cosmwasm_std::{Addr, Uint128, Deps, Env};
+use cw20::{Cw20QueryMsg};
 use cw_storage_plus::{Item, Map};
 use cw_utils::Duration;
 
-use crate::{ContractError, msg::TokenInfo};
+use crate::{ContractError, msg::DripToken};
 
 /// Smart contract configuration parameters
 #[cw_serde]
@@ -20,7 +21,7 @@ pub struct Config {
 
 #[cw_serde]
 pub struct DripPool {
-    pub drip_token : CheckedTokenInfo,
+    pub drip_token : CheckedDripToken,
     pub actual_amount: Uint128,
     pub issued_shares: Uint128,
     pub epochs_number: u64,
@@ -28,7 +29,7 @@ pub struct DripPool {
 }
 
 #[cw_serde]
-pub enum CheckedTokenInfo {
+pub enum CheckedDripToken {
     Native {
         denom: String,
         initial_amount: Uint128,
@@ -59,17 +60,17 @@ pub const DRIP_TOKENS: Item<Vec<String>> = Item::new("drip_tokens");
 pub const PARTICIPANTS_SHARES: Map<&Addr, Vec<DripPoolShares>> = Map::new("participants_shares");
 pub const DRIP_POOLS: Map<String, DripPool> = Map::new("drip_pools");
 
-impl TokenInfo {
-    pub fn into_checked(self, deps: Deps) -> Result<CheckedTokenInfo, ContractError> {
+impl DripToken {
+    pub fn into_checked(self, deps: Deps) -> Result<CheckedDripToken, ContractError> {
         match self {
-            TokenInfo::Native {denom, initial_amount} => {
+            DripToken::Native {denom, initial_amount} => {
                 if initial_amount.is_zero() {
                     Err(ContractError::ZeroTokenPool {})
                 }  else {
-                    Ok(CheckedTokenInfo::Native { denom, initial_amount })
+                    Ok(CheckedDripToken::Native { denom, initial_amount })
                 }
             }
-            TokenInfo::CW20 { address, initial_amount } => {
+            DripToken::CW20 { address, initial_amount } => {
                 if initial_amount.is_zero() {
                     Err(ContractError::ZeroTokenPool {})
                 } else {
@@ -78,20 +79,20 @@ impl TokenInfo {
                         address.clone(), 
                         &cw20::Cw20QueryMsg::TokenInfo {},
                     )?;
-                    Ok(CheckedTokenInfo::CW20 { symbol: resp.symbol, address, initial_amount })
+                    Ok(CheckedDripToken::CW20 { symbol: resp.symbol, address, initial_amount })
                 }
             }
         }
     }
 }
 
-impl CheckedTokenInfo {
+impl CheckedDripToken {
     pub fn get_initial_amount(self) -> Uint128 {
         match self {
-            CheckedTokenInfo::Native {denom: _, initial_amount} => {
+            CheckedDripToken::Native {denom: _, initial_amount} => {
                 return initial_amount
             }
-            CheckedTokenInfo::CW20 { symbol: _, address: _, initial_amount } => {
+            CheckedDripToken::CW20 { symbol: _, address: _, initial_amount } => {
                 return initial_amount
             }
         }
@@ -99,36 +100,35 @@ impl CheckedTokenInfo {
     
     pub fn get_token(self) -> String {
         match self {
-            CheckedTokenInfo::Native {denom, initial_amount: _} => {
+            CheckedDripToken::Native {denom, initial_amount: _} => {
                 return denom
             }
-            CheckedTokenInfo::CW20 { symbol: _, address, initial_amount: _ } => {
+            // We have to use address because is the only unique
+            CheckedDripToken::CW20 { symbol: _, address, initial_amount: _ } => {
                 return address.to_string()
             }
         }
     }
 
     // TODO: find a better way to check and refund excess
-    pub fn check_balance(self, info: MessageInfo, deps: Deps, env: Env) -> Result<bool, ContractError> {
+    pub fn validate_drip_amount(self, deps: Deps, env: Env) -> Result<(), ContractError> {
         match self {
-            CheckedTokenInfo::Native { denom: _, initial_amount } => {
-                // TODO: generalize 
-                if initial_amount != info.funds[0].amount {
-                    Err(ContractError::NoFundedContract {})
-                } else {
-                    Ok(true)
-                } 
-            }
-            CheckedTokenInfo::CW20 { symbol: _, address, initial_amount } => {
-                let contract_funds: cw20::BalanceResponse = deps.querier.query_wasm_smart(
-                    address, 
-                    &cw20::Cw20QueryMsg::Balance {address: env.contract.address.into()},
+            Self::Native { denom, initial_amount } => {
+                let native_token_balance = deps.querier.query_balance(env.contract.address.to_string(), denom.clone())?;
+                if native_token_balance.amount < initial_amount {
+                    return Err(ContractError::NoFundedContract { token: denom, amount: initial_amount});
+                };
+                Ok(())
+            },
+            Self::CW20 { symbol: _, address, initial_amount } => {
+                let cw20_token_balance: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+                    address.clone(), 
+                    &Cw20QueryMsg::Balance { address: env.contract.address.to_string() }
                 )?;
-                if initial_amount != contract_funds.balance {
-                    Err(ContractError::NoFundedContract {})
-                } else {
-                    Ok(true)
-                }
+                if cw20_token_balance.balance < initial_amount {
+                     return Err(ContractError::NoFundedContract { token: address.to_string(), amount: initial_amount});
+                };
+                Ok(())
             }
         }
     }
@@ -137,11 +137,11 @@ impl CheckedTokenInfo {
 #[cfg(test)]
 #[test]
 fn test_get_initial_amount() {
-    let token = CheckedTokenInfo::Native { denom: "ujuno".to_string(), initial_amount: Uint128::zero() };
+    let token = CheckedDripToken::Native { denom: "ujuno".to_string(), initial_amount: Uint128::zero() };
     let amount = token.get_initial_amount();
     assert_eq!(amount, Uint128::zero());
 
-    let token = CheckedTokenInfo::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000u128) };
+    let token = CheckedDripToken::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000u128) };
     let amount = token.get_initial_amount();
     assert_ne!(amount, Uint128::zero());
     assert_eq!(amount, Uint128::new(1000));

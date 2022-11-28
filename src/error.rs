@@ -1,7 +1,8 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[cfg_attr(test, derive(PartialEq))] // Only neeed while testing.
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
@@ -17,8 +18,8 @@ pub enum ContractError {
     #[error("DripAlreadyExists")]
     DripPoolAlreadyExists {},
 
-    #[error("NoFundedContract")]
-    NoFundedContract {},
+    #[error("Smart contract has not enough tokens. Missing: [{token}] [{amount}")]
+    NoFundedContract { token: String, amount: Uint128 },
 
     #[error("ZeroTokenPool")]
     ZeroTokenPool {},

@@ -1,10 +1,10 @@
-use cosmwasm_std::{entry_point, Addr};
+use cosmwasm_std::{entry_point};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, VotingPowerAtHeightReponse, AddParticipantResponse, TokenInfo, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse};
-use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, CheckedTokenInfo, PARTICIPANTS, DRIP_TOKENS, DripPoolShares, DRIP_POOLS};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse};
+use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS};
 
 
 // version info for migration info
@@ -49,7 +49,7 @@ pub fn execute(
     ExecuteMsg::CreateDripPool { 
         token_info, 
         epochs_number 
-    } => execute_create_drip_pool(deps, info, token_info, epochs_number)
+    } => execute_create_drip_pool(deps, env, info, token_info, epochs_number)
    }
 }
 
@@ -96,8 +96,9 @@ pub fn execute_add_participant(
 
 pub fn execute_create_drip_pool(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    token_info: TokenInfo,
+    token_info: DripToken,
     epochs_number: u64, 
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -105,28 +106,31 @@ pub fn execute_create_drip_pool(
         return Err(ContractError::Unauthorized {})
     };
 
+    // Basic checks on token_info
     let drip_token = token_info.into_checked(deps.as_ref())?;
 
-    // TODO: check if faster than iterating and using any() 
-    if DRIP_POOLS.has(deps.storage, drip_token.clone().get_token()) {
-        return Err(ContractError::DripPoolAlreadyExists {});
-    } else {};
-
+    // Check if drip pool already exists or create it
     DRIP_POOLS.update(deps.storage, drip_token.clone().get_token(), |drip_pool| -> Result<DripPool, ContractError> {
         match drip_pool {
             Some(_)  => Err(ContractError::DripPoolAlreadyExists {}),
             None => {
-                Ok(DripPool { 
-                drip_token: drip_token.clone(), 
-                actual_amount: drip_token.clone().get_initial_amount(), 
-                issued_shares: Uint128::zero(), 
-                epochs_number, 
-                current_epoch: 0u64
-            })
+                Ok(
+                    DripPool { 
+                        drip_token: drip_token.clone(), 
+                        actual_amount: drip_token.clone().get_initial_amount(), 
+                        issued_shares: Uint128::zero(), 
+                        epochs_number, 
+                        current_epoch: 0u64
+                    }
+                )
             }
         } 
     })?;
+    
+    // TODO: how to handle it without clone()
+    drip_token.clone().validate_drip_amount(deps.as_ref(), env)?;
 
+    // Save the drip token denom or address into storage
     DRIP_TOKENS.update(deps.storage, |mut drip_tokens| -> StdResult<_>{
         drip_tokens.push(drip_token.clone().get_token());
         Ok(drip_tokens)
