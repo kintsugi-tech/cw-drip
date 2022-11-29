@@ -14,7 +14,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -27,7 +27,9 @@ pub fn instantiate(
         owner: info.sender,
         staking_module_address: staking_address,
         min_staking_amount: msg.min_staking_amount,
-        epoch_duration: msg.epoch_duration
+        epoch_duration: msg.epoch_duration,
+        creation_block: env.block.height,
+        last_distribution_epoch_number: 0u64,
     };
 
     CONFIG.save(deps.storage, &config)?;

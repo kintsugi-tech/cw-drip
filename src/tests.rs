@@ -1,6 +1,6 @@
 use crate::ContractError;
 use crate::contract::{instantiate, query};
-use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ParticipantsResponse, DripPoolsResponse, DripToken, DripTokensResponse, DripPoolResponse};
+use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ParticipantsResponse, DripPoolsResponse, DripToken, DripTokensResponse, DripPoolResponse, ConfigResponse};
 use crate::state::{Config, CheckedDripToken, DripPool};
 use cosmwasm_std::{Empty, Coin};
 use cosmwasm_std::{
@@ -53,20 +53,20 @@ fn setup_dependencies(
     deps
 }
 
-fn get_config(deps: Deps, env: Env) -> Config {
+fn get_config(deps: Deps, env: Env) -> ConfigResponse {
     let msg = QueryMsg::Config {};
     let bin = query(deps, env, msg).unwrap();
     from_binary(&bin).unwrap()
 }
 
 
-fn get_participants(deps: Deps, env: Env) -> Vec<Addr> {
+fn get_participants(deps: Deps, env: Env) -> ParticipantsResponse {
     let msg = QueryMsg::Participants {};
     let bin = query(deps, env, msg).unwrap();
     from_binary(&bin).unwrap()
 }
 
-fn get_drip_tokens(deps: Deps, env: Env) -> Vec<String> {
+fn get_drip_tokens(deps: Deps, env: Env) -> DripTokensResponse {
     let msg = QueryMsg::DripTokens {};
     let bin = query(deps, env, msg).unwrap();
     from_binary(&bin).unwrap()
@@ -131,25 +131,27 @@ fn test_instantiate() {
         epoch_duration: Duration::Height(100)
     };
     let _init_res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
-
     let config = get_config(deps.as_ref(), env.clone());
+    
     assert_eq!(
-        config, 
+        config.config, 
         Config {
             owner: Addr::unchecked(SENDER),
             staking_module_address: Addr::unchecked(STAKING_MODULE),
             min_staking_amount: Uint128::zero(),
-            epoch_duration: Duration::Height(100)
+            epoch_duration: Duration::Height(100),
+            creation_block: 12345u64,
+            last_distribution_epoch_number: 0u64,
         }
     );
 
     let participants = get_participants(deps.as_ref(), env.clone());
     let no_participants: Vec<Addr> = Vec::new();
-    assert_eq!(participants, no_participants);
+    assert_eq!(participants, ParticipantsResponse { participants: no_participants});
 
-    let drip_tokens = get_participants(deps.as_ref(), env.clone());
+    let drip_tokens = get_drip_tokens(deps.as_ref(), env.clone());
     let no_drip_tokens: Vec<String> = Vec::new();
-    assert_eq!(drip_tokens, no_drip_tokens);
+    assert_eq!(drip_tokens, DripTokensResponse { drip_tokens: no_drip_tokens});
 
 
 }

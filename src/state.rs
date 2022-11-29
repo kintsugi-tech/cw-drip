@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128, Deps, Env};
+use cosmwasm_std::{Addr, Uint128, Deps, Env, BlockInfo};
 use cw20::{Cw20QueryMsg};
 use cw_storage_plus::{Item, Map};
 use cw_utils::Duration;
@@ -16,7 +16,11 @@ pub struct Config {
     // Minimum amount of native token staked to be allowed to participate 
     pub min_staking_amount: Uint128,
     /// Duration of each reward epoch
-    pub epoch_duration: Duration
+    pub epoch_duration: Duration,
+    /// Creation block
+    pub creation_block: u64,
+    /// Epoch number of the last distribution
+    pub last_distribution_epoch_number: u64, 
 }
 
 #[cw_serde]
