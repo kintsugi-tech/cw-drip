@@ -46,7 +46,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
    match msg {
     ExecuteMsg::Participate {} => execute_add_participant(deps, info),
-    ExecuteMsg::RemoveParticipation {  } => todo!(),
+    ExecuteMsg::RemoveParticipation {  } => execute_remove_participant(deps, info), 
     ExecuteMsg::CreateDripPool { 
         token_info, 
         epochs_number 
@@ -58,6 +58,7 @@ pub fn execute(
     ExecuteMsg::WithdrawTokens {  } => todo!(),
    }
 }
+
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -98,8 +99,18 @@ pub fn execute_add_participant(
         .add_attribute("action", "add_participant")
         .add_attribute("addess", info.sender);
     Ok(res)
+}
 
+fn execute_remove_participant(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+    PARTICIPANTS.update(deps.storage, |mut participants| -> StdResult<_>{
+        participants.retain(|address| *address != info.sender);
+        Ok(participants)
+    })?;
 
+    let res = Response::new()
+       .add_attribute("action", "remove_participant")
+       .add_attribute("address", info.sender.to_string());
+    Ok(res)
 }
 
 pub fn execute_create_drip_pool(

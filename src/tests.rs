@@ -468,7 +468,7 @@ fn test_add_participant() {
 
     // Add a participant and check for correct vector update
     app.execute_contract(
-        Addr::unchecked(SENDER), 
+        Addr::unchecked(PAR1), 
         drip_contract_addr.clone(), 
         &ExecuteMsg::Participate {}, 
         &[]
@@ -481,6 +481,93 @@ fn test_add_participant() {
         .unwrap();
 
     assert_eq!(resp.participants.len(), 1);
+    assert_eq!(
+        resp.participants,
+        vec![Addr::unchecked(PAR1)]
+    )
+
+}
+
+#[test]
+fn test_remove_participant() {
+    let mut app = App::default();
+
+    let drip_contract_code_id = app.store_code(drip_contract());
+
+    let instantiate_msg = InstantiateMsg {
+        staking_module_address: STAKING_MODULE.to_string(),
+        min_staking_amount: Uint128::zero(),
+        epoch_duration: Duration::Height(100)
+    };
+
+    let drip_contract_addr = app.instantiate_contract(
+        drip_contract_code_id, 
+        Addr::unchecked(SENDER), 
+        &instantiate_msg, 
+        &[], 
+        "drip", 
+        None,
+    ).unwrap();
+   
+    // Check empty participants vector before any execution
+    let resp: ParticipantsResponse = app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr.clone(), &QueryMsg::Participants {})
+        .unwrap();
+
+    assert_eq!(resp.participants.len(), 0);
+
+    // Add a participant and check for correct vector update
+    app.execute_contract(
+        Addr::unchecked(PAR1), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::Participate {}, 
+        &[]
+    )
+    .unwrap();
+   
+    app.execute_contract(
+        Addr::unchecked(SENDER), 
+        drip_contract_addr.clone(),
+        &ExecuteMsg::RemoveParticipation {}, 
+        &[]
+    )
+    .unwrap();
+
+    let resp: ParticipantsResponse = app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr.clone(), &QueryMsg::Participants {})
+        .unwrap();
+
+    assert_eq!(resp.participants.len(), 1);
+    
+    app.execute_contract(
+        Addr::unchecked(PAR1), 
+        drip_contract_addr.clone(),
+        &ExecuteMsg::RemoveParticipation {}, 
+        &[]
+    )
+    .unwrap();
+
+    app.execute_contract(
+        Addr::unchecked(PAR2), 
+        drip_contract_addr.clone(), 
+        &ExecuteMsg::Participate {}, 
+        &[]
+    )
+    .unwrap();
+ 
+
+    let resp: ParticipantsResponse = app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr, &QueryMsg::Participants {})
+        .unwrap();
+
+    assert_eq!(resp.participants.len(), 1);
+    assert_eq!(
+        resp.participants,
+        vec![Addr::unchecked(PAR2)]
+    )
 
 }
 
