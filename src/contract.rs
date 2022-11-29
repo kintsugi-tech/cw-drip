@@ -3,7 +3,7 @@ use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse};
 use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS};
 
 
@@ -59,6 +59,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => {to_binary(&query_config(deps)?)}
         QueryMsg::Participants {} => {to_binary(&query_participants(deps)?)}
         QueryMsg::DripTokens {} => {to_binary(&query_drip_tokens(deps)?)}
+        QueryMsg::DripPool {token} => {to_binary(&query_drip_pool(deps, token)?)}
         QueryMsg::DripPools {} => {to_binary(&query_drip_pools(deps)?)}
         QueryMsg::TotalPowerAtHeight {height} => {
             to_binary(&query_total_power_at_height(deps, env, height)?)
@@ -66,6 +67,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::VotingPowerAtHeight {address, height} => todo!()
     }
 }
+
 
 pub fn execute_add_participant(
     deps: DepsMut,
@@ -164,6 +166,16 @@ fn query_participants(deps: Deps) -> StdResult<ParticipantsResponse> {
     })
 }
 
+fn query_drip_pool(deps: Deps, token: String) -> StdResult<DripPoolResponse> {
+    let drip_pool = DRIP_POOLS.may_load(deps.storage, token)?;
+    match drip_pool {
+        Some(drip_pool) => Ok(DripPoolResponse {
+            drip_pool: Some(drip_pool)
+        }),
+        None => Ok(DripPoolResponse { drip_pool: None })
+    }
+}
+
 fn query_drip_pools(deps: Deps) -> StdResult<DripPoolsResponse> {
     let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
     let drip_pools = drip_tokens
@@ -173,7 +185,6 @@ fn query_drip_pools(deps: Deps) -> StdResult<DripPoolsResponse> {
             Ok(drip_pool)
         })
         .collect::<StdResult<Vec<DripPool>>>()?;
-
     Ok(DripPoolsResponse {
         drip_pools
     })

@@ -1,7 +1,7 @@
 use crate::ContractError;
 use crate::contract::{instantiate, query};
-use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ParticipantsResponse, DripPoolsResponse, DripToken, DripTokensResponse};
-use crate::state::{Config, CheckedDripToken};
+use crate::msg::{InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, ExecuteMsg, ParticipantsResponse, DripPoolsResponse, DripToken, DripTokensResponse, DripPoolResponse};
+use crate::state::{Config, CheckedDripToken, DripPool};
 use cosmwasm_std::{Empty, Coin};
 use cosmwasm_std::{
     Validator, FullDelegation, OwnedDeps, Deps, Env, Addr, from_binary, Uint128,
@@ -97,6 +97,15 @@ fn query_drip_tokens (app: &App, drip_contract_addr: Addr) -> DripTokensResponse
     let resp: DripTokensResponse= app
         .wrap()
         .query_wasm_smart(drip_contract_addr, &QueryMsg::DripTokens {})
+        .unwrap();
+    resp
+}
+
+// Query for getting info for a specific pool 
+fn query_drip_pool(app: &App, drip_contract_addr: Addr, token: String) -> DripPoolResponse {
+    let resp: DripPoolResponse = app
+        .wrap()
+        .query_wasm_smart(drip_contract_addr.clone(), &QueryMsg::DripPool {token})
         .unwrap();
     resp
 }
@@ -246,6 +255,10 @@ fn test_create_drip_pool_no_funded_contract () {
     
     assert_eq!(err, ContractError::NoFundedContract {token: checked_cw20_token.clone().get_token(), amount: checked_cw20_token.clone().get_initial_amount()});
 
+
+    let resp = query_drip_pool(&app, drip_contract_addr, "uatom".to_string());
+
+    assert_eq!(None, resp.drip_pool)
   
 }
 
@@ -329,6 +342,20 @@ fn test_create_drip_pool_funded_contract () {
     // No drip token in storage
     let resp = query_drip_tokens(&app, drip_contract_addr.clone()); 
     assert_eq!(resp.drip_tokens.len(), 1);
+    
+    let resp = query_drip_pool(&app, drip_contract_addr.clone(), "ujuno".to_string()); 
+
+    assert_eq!(
+        Some(DripPool {
+            drip_token: checked_native_token.clone(),
+            actual_amount: checked_native_token.clone().get_initial_amount(),
+            issued_shares: Uint128::zero(),
+            epochs_number: 10u64,
+            current_epoch: 0u64,
+        }), 
+        resp.drip_pool
+    );
+
 
     let err: ContractError = app.execute_contract(
         Addr::unchecked(SENDER), 
@@ -350,6 +377,11 @@ fn test_create_drip_pool_funded_contract () {
         initial_amount: Uint128::new(1_000_000) 
     }; 
     
+    let checked_cw20_token = CheckedDripToken::CW20 {
+        symbol: "PYT".to_string(), 
+        address: cw20_contract_addr.clone(), 
+        initial_amount: Uint128::new(1_000_000) 
+    }; 
     // Test non existing cw20
     let _resp = app.execute_contract(
         Addr::unchecked(SENDER), 
@@ -386,6 +418,20 @@ fn test_create_drip_pool_funded_contract () {
     .unwrap();
 
     assert_eq!(err, ContractError::DripPoolAlreadyExists {});
+
+    let resp = query_drip_pool(&app, drip_contract_addr, cw20_contract_addr.clone().to_string()); 
+
+    assert_eq!(
+        Some(DripPool {
+            drip_token: checked_cw20_token.clone(),
+            actual_amount: checked_cw20_token.clone().get_initial_amount(),
+            issued_shares: Uint128::zero(),
+            epochs_number: 10u64,
+            current_epoch: 0u64,
+        }), 
+        resp.drip_pool
+    )
+
 
 }
 

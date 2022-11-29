@@ -38,19 +38,24 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    // Get the current config of the smart contract
+    /// Get the current config of the smart contract
     #[returns(ConfigResponse)]
     Config {},
-    // Get the vector of all participants
+    /// Get the vector of all participants
     #[returns(ParticipantsResponse)]
     Participants {},
-    // Get the vector of the drip tokens denom
+    /// Get the vector of the drip tokens denom
     #[returns(DripTokensResponse)]
     DripTokens {},
-    // Get all drip pools
+    /// Get info of a drip pool
+    #[returns(DripPoolResponse)]
+    DripPool {
+        token: String
+    },
+    /// Get all drip pools
     #[returns(DripPoolsResponse)]
     DripPools {},
-    // Get the total number of drip pools
+    /// Get the total number of drip pools
     #[returns(VotingPowerAtHeightReponse)]
     VotingPowerAtHeight {
         address: String,
@@ -75,6 +80,11 @@ pub struct ParticipantsResponse {
 #[cw_serde]
 pub struct DripTokensResponse {
     pub drip_tokens: Vec<String>
+}
+
+#[cw_serde]
+pub struct DripPoolResponse {
+    pub drip_pool: Option<DripPool>
 }
 
 #[cw_serde]

@@ -23,4 +23,7 @@ pub enum ContractError {
 
     #[error("ZeroTokenPool")]
     ZeroTokenPool {},
+
+    #[error("Drip pool for token [{token}] not found.")]
+    DripPoolNotFound { token: String },
 }
