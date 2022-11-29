@@ -46,10 +46,16 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
    match msg {
     ExecuteMsg::Participate {} => execute_add_participant(deps, info),
+    ExecuteMsg::RemoveParticipation {  } => todo!(),
     ExecuteMsg::CreateDripPool { 
         token_info, 
         epochs_number 
-    } => execute_create_drip_pool(deps, env, info, token_info, epochs_number)
+    } => execute_create_drip_pool(deps, env, info, token_info, epochs_number),
+    ExecuteMsg::UpdateDripPool {} => todo!(),
+    ExecuteMsg::RemoveDripPool {} => todo!(),
+    ExecuteMsg::DistributeShares {  } => todo!(),
+    ExecuteMsg::WithdrawToken {  } => todo!(),
+    ExecuteMsg::WithdrawTokens {  } => todo!(),
    }
 }
 

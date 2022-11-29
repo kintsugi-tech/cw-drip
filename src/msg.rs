@@ -29,10 +29,16 @@ pub enum DripToken {
 #[cw_serde]
 pub enum ExecuteMsg {
     Participate {},
+    RemoveParticipation {},
     CreateDripPool {
         token_info: DripToken,
         epochs_number: u64,
-    }
+    },
+    UpdateDripPool {},
+    RemoveDripPool {},
+    DistributeShares {},
+    WithdrawToken {},
+    WithdrawTokens {},
 }
 
 #[cw_serde]
