@@ -1,6 +1,7 @@
 use cosmwasm_std::{entry_point};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
+use cw_utils::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse};
@@ -27,9 +28,9 @@ pub fn instantiate(
         owner: info.sender,
         staking_module_address: staking_address,
         min_staking_amount: msg.min_staking_amount,
-        epoch_duration: msg.epoch_duration,
-        creation_block: env.block.height,
-        last_distribution_epoch_number: 0u64,
+        epoch_duration: msg.epoch_duration.clone(),
+        last_distribution_time: None,
+        next_distribution_time: msg.epoch_duration.after(&env.block), 
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -55,11 +56,12 @@ pub fn execute(
     } => execute_create_drip_pool(deps, env, info, token_info, epochs_number),
     ExecuteMsg::UpdateDripPool {} => todo!(),
     ExecuteMsg::RemoveDripPool {} => todo!(),
-    ExecuteMsg::DistributeShares {  } => todo!(),
+    ExecuteMsg::DistributeShares {  } => execute_distribute_shares(deps, env, info),
     ExecuteMsg::WithdrawToken {  } => todo!(),
     ExecuteMsg::WithdrawTokens {  } => todo!(),
    }
 }
+
 
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -165,6 +167,11 @@ pub fn execute_create_drip_pool(
     Ok(res)
 
    
+}
+
+fn execute_distribute_shares(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    todo!()
 }
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {

@@ -9,7 +9,7 @@ use cosmwasm_std::{
     };
 use cw20::Cw20Coin;
 use cw_multi_test::{Contract, ContractWrapper, App, Executor, SudoMsg, BankSudo};
-use cw_utils::Duration;
+use cw_utils::{Duration, Expiration};
 
 const DENOM: &str = "ujuno";
 const SENDER: &str = "dao";
@@ -140,8 +140,8 @@ fn test_instantiate() {
             staking_module_address: Addr::unchecked(STAKING_MODULE),
             min_staking_amount: Uint128::zero(),
             epoch_duration: Duration::Height(100),
-            creation_block: 12345u64,
-            last_distribution_epoch_number: 0u64,
+            last_distribution_time: None,
+            next_distribution_time: Expiration::AtHeight(env.block.height + 100),
         }
     );
 

@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128, Deps, Env, BlockInfo};
 use cw20::{Cw20QueryMsg};
 use cw_storage_plus::{Item, Map};
-use cw_utils::Duration;
+use cw_utils::{Duration, Expiration};
 
 use crate::{ContractError, msg::DripToken};
 
@@ -18,9 +18,9 @@ pub struct Config {
     /// Duration of each reward epoch
     pub epoch_duration: Duration,
     /// Creation block
-    pub creation_block: u64,
+    pub last_distribution_time: Option<Duration>,
     /// Epoch number of the last distribution
-    pub last_distribution_epoch_number: u64, 
+    pub next_distribution_time: Expiration, 
 }
 
 #[cw_serde]

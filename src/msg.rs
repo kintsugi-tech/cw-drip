@@ -11,7 +11,7 @@ pub struct InstantiateMsg {
     /// Minimum native token staked to participate
     pub min_staking_amount: Uint128,
     /// Duration of a single epoch for all the drip pool
-    pub epoch_duration: Duration
+    pub epoch_duration: Duration,
 }
 
 #[cw_serde]
