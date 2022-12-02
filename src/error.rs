@@ -18,7 +18,7 @@ pub enum ContractError {
     #[error("DripAlreadyExists")]
     DripPoolAlreadyExists {},
 
-    #[error("Smart contract has not enough tokens. Missing: [{token}] [{amount}")]
+    #[error("Smart contract has not enough tokens. Missing: [{token}] [{amount}]")]
     NoFundedContract { token: String, amount: Uint128 },
 
     #[error("ZeroTokenPool")]
@@ -26,4 +26,10 @@ pub enum ContractError {
 
     #[error("Drip pool for token [{token}] not found.")]
     DripPoolNotFound { token: String },
+
+    #[error("No drip pool active.")]
+    ZeroDripPoolActive {  },
+
+    #[error("Tokens initial amount [{tokens_amount}] does not coincide with epochs number times tokens per epoch [{total_tokens}]")]
+    WrongTokensAmount { tokens_amount: Uint128, total_tokens: Uint128},
 }

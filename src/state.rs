@@ -23,34 +23,49 @@ pub struct Config {
     pub next_distribution_time: Expiration, 
 }
 
+/// Drip pool information saved on storage
 #[cw_serde]
 pub struct DripPool {
+    /// Token to be distributed
     pub drip_token : CheckedDripToken,
+    /// Remaining amount to distribute
     pub actual_amount: Uint128,
+    /// Tokens to distribute at every epoch
+    pub tokens_per_epoch: Uint128,
+    /// Shares issued to participants
     pub issued_shares: Uint128,
+    /// Total distribution epoch
     pub epochs_number: u64,
+    /// Current distribution epoch
     pub current_epoch: u64,
 }
 
+/// Drip token variants after initial amount check
 #[cw_serde]
 pub enum CheckedDripToken {
     Native {
+        /// Token denom
         denom: String,
+        /// Initial amount of the drip pool
         initial_amount: Uint128,
     },
     CW20 {
+        /// Token symbol
         symbol: String,
+        /// CW20 smart contract address
         address: Addr,
+        /// Initial amount of the drip pool
         initial_amount: Uint128,
     }
 }
 
+/// Structure for managing participant shares for one drip token
 #[cw_serde]
 pub struct DripPoolShares {
-    // Denom or address of the token
-    token: String,
-    // Total amount of shares
-    totale_shares: Uint128
+    /// Denom or address of the token
+    pub token: String,
+    /// Total amount of shares
+    pub totale_shares: Uint128
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

@@ -14,28 +14,40 @@ pub struct InstantiateMsg {
     pub epoch_duration: Duration,
 }
 
+/// Unvalidated drip token
 #[cw_serde]
 pub enum DripToken {
     Native {
+        /// Token denom
         denom: String,
+        /// Initial amount of the drip pool
         initial_amount: Uint128,
     },
     CW20 {
+        /// CW20 smart contract address
         address: String,
+        /// Initial amount of the drip pool
         initial_amount: Uint128,
     }
 }
 
 #[cw_serde]
 pub enum ExecuteMsg {
+    /// Participate to the drip distribution
     Participate {},
+    /// Remove participation to the drip distribution. No more shares
+    /// will be accrued.
     RemoveParticipation {},
+    /// Create a distribution drip pool
     CreateDripPool {
         token_info: DripToken,
+        tokens_per_epoch: Uint128,
         epochs_number: u64,
     },
     UpdateDripPool {},
     RemoveDripPool {},
+    /// Compute and distribute active drip pools shares to
+    /// participants
     DistributeShares {},
     WithdrawToken {},
     WithdrawTokens {},
@@ -44,35 +56,24 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Get the current config of the smart contract
+    /// Get the current smart contract config
     #[returns(ConfigResponse)]
     Config {},
-    /// Get the vector of all participants
+    /// Get the vector of participants
     #[returns(ParticipantsResponse)]
     Participants {},
-    /// Get the vector of the drip tokens denom
+    /// Get the vector of drip tokens denom
     #[returns(DripTokensResponse)]
     DripTokens {},
-    /// Get info of a drip pool
+    /// Get info of a specific drip pool
     #[returns(DripPoolResponse)]
-    DripPool {
-        token: String
-    },
+    DripPool { token: String },
     /// Get all drip pools
     #[returns(DripPoolsResponse)]
     DripPools {},
-    /// Get the total number of drip pools
-    #[returns(VotingPowerAtHeightReponse)]
-    VotingPowerAtHeight {
-        address: String,
-        height: Option<u64>,
-    },
-    #[returns(TotalPowerAtHeightResponse)]
-    TotalPowerAtHeight {
-        height: Option<u64>,
-    },
 }
 
+// Query response structures
 #[cw_serde]
 pub struct ConfigResponse {
     pub config: Config

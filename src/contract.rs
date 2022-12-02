@@ -1,11 +1,11 @@
-use cosmwasm_std::{entry_point};
+use cosmwasm_std::{entry_point, StdError, Addr};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
 use cw_utils::Duration;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, TotalPowerAtHeightResponse, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse};
-use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse};
+use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS, DripPoolShares};
 
 
 // version info for migration info
@@ -51,9 +51,10 @@ pub fn execute(
     ExecuteMsg::Participate {} => execute_add_participant(deps, info),
     ExecuteMsg::RemoveParticipation {  } => execute_remove_participant(deps, info), 
     ExecuteMsg::CreateDripPool { 
-        token_info, 
+        token_info,
+        tokens_per_epoch, 
         epochs_number 
-    } => execute_create_drip_pool(deps, env, info, token_info, epochs_number),
+    } => execute_create_drip_pool(deps, env, info, token_info,tokens_per_epoch, epochs_number),
     ExecuteMsg::UpdateDripPool {} => todo!(),
     ExecuteMsg::RemoveDripPool {} => todo!(),
     ExecuteMsg::DistributeShares {  } => execute_distribute_shares(deps, env, info),
@@ -72,10 +73,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::DripTokens {} => {to_binary(&query_drip_tokens(deps)?)}
         QueryMsg::DripPool {token} => {to_binary(&query_drip_pool(deps, token)?)}
         QueryMsg::DripPools {} => {to_binary(&query_drip_pools(deps)?)}
-        QueryMsg::TotalPowerAtHeight {height} => {
-            to_binary(&query_total_power_at_height(deps, env, height)?)
-        }
-        QueryMsg::VotingPowerAtHeight {address, height} => todo!()
     }
 }
 
@@ -122,6 +119,7 @@ pub fn execute_create_drip_pool(
     env: Env,
     info: MessageInfo,
     token_info: DripToken,
+    tokens_per_epoch: Uint128,
     epochs_number: u64, 
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -131,6 +129,17 @@ pub fn execute_create_drip_pool(
 
     // Basic checks on token_info
     let drip_token = token_info.into_checked(deps.as_ref())?;
+    
+    drip_token.clone().validate_drip_amount(deps.as_ref(), env)?;
+
+    let total_drip_amount = tokens_per_epoch.checked_mul(epochs_number.into()).unwrap();
+
+    if drip_token.clone().get_initial_amount() != total_drip_amount {
+        return Err(ContractError::WrongTokensAmount {tokens_amount: drip_token.get_initial_amount(), total_tokens: total_drip_amount})
+    }
+
+    // TODO: check on epochs number > 0
+    // TODO: add an upper bound for epochs number? It is meaningless allowing 0 tokens_per_epochs
 
     // Check if drip pool already exists or create it
     DRIP_POOLS.update(deps.storage, drip_token.clone().get_token(), |drip_pool| -> Result<DripPool, ContractError> {
@@ -140,7 +149,8 @@ pub fn execute_create_drip_pool(
                 Ok(
                     DripPool { 
                         drip_token: drip_token.clone(), 
-                        actual_amount: drip_token.clone().get_initial_amount(), 
+                        actual_amount: total_drip_amount,
+                        tokens_per_epoch,
                         issued_shares: Uint128::zero(), 
                         epochs_number, 
                         current_epoch: 0u64
@@ -150,9 +160,7 @@ pub fn execute_create_drip_pool(
         } 
     })?;
     
-    // TODO: how to handle it without clone()
-    drip_token.clone().validate_drip_amount(deps.as_ref(), env)?;
-
+    
     // Save the drip token denom or address into storage
     DRIP_TOKENS.update(deps.storage, |mut drip_tokens| -> StdResult<_>{
         drip_tokens.push(drip_token.clone().get_token());
@@ -165,14 +173,82 @@ pub fn execute_create_drip_pool(
         .add_attribute("amount", drip_token.get_initial_amount())
         .add_attribute("epochs_number", epochs_number.to_string());
     Ok(res)
-
-   
 }
 
-fn execute_distribute_shares(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+fn execute_distribute_shares(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
+
+    // Check if there is at least one drip pool to distribute shares
+    if drip_tokens.is_empty() {
+        return Err(ContractError::ZeroDripPoolActive {});
+    }
+
+    // Check if pay time!
+    if config.next_distribution_time.is_expired(&env.block) {
+        let participants = PARTICIPANTS.load(deps.storage)?;
+
+        // Initialize shares emitted
+        let mut emitted_shares = Uint128::zero();
+        for participant in participants {
+            let delegations = deps.querier.query_all_delegations(participant.clone())?;
+
+            // TODO: add filter to remove micro delegations?
+            // Compute total $JUNO delegated by current address
+            let total_staked: Uint128 = delegations   
+                .iter()
+                .map(|delegation| delegation.amount.amount)
+                .sum();
+            
+            // If eligible then distribute shares
+            if total_staked >= config.min_staking_amount {
+                // Shares are distribute per drip pool
+                update_participant_shares(&mut deps, &participant, drip_tokens.clone(), total_staked)?;
+                emitted_shares += total_staked;
+            }
+        };
+        update_drip_pools_shares(deps, emitted_shares)?;
+        
+    }
     todo!()
 }
+
+pub fn update_participant_shares<'a>(deps: &'a mut DepsMut, participant: &Addr, drip_tokens: Vec<String>, total_staked: Uint128) -> Result<(), ContractError> {
+    PARTICIPANTS_SHARES.update(deps.storage, &participant, |shares| -> StdResult<_> {
+    let  mut shares = shares.unwrap_or_default();
+        for drip_token in drip_tokens {
+            let pool_position = shares.iter().position(|pool| pool.token == drip_token.clone());
+        match pool_position {
+            Some(position) => shares[position].totale_shares += total_staked,
+            None => shares.push(DripPoolShares {
+                token: drip_token.clone(),
+                totale_shares: total_staked,
+            })
+        };
+    }
+    Ok(shares)
+    })?;
+    Ok(())
+}
+
+/// Update the active drip pools by emitting shares and removing the distributed tokens.
+pub fn update_drip_pools_shares(deps: DepsMut, emitted_shares: Uint128) -> Result<(), ContractError> {
+    let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
+    for drip_token in drip_tokens {
+        DRIP_POOLS.update(deps.storage, drip_token.clone(), |drip_pool| -> StdResult<_> {
+            let mut drip_pool = drip_pool.unwrap();
+            if drip_pool.current_epoch <= drip_pool.epochs_number && drip_pool.actual_amount >= drip_pool.tokens_per_epoch {
+                drip_pool.issued_shares += emitted_shares;
+                drip_pool.actual_amount -= drip_pool.tokens_per_epoch;
+                drip_pool.current_epoch += 1;
+            };
+            Ok(drip_pool)
+        })?;
+    }        
+    Ok(())     
+}
+
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
@@ -214,18 +290,5 @@ fn query_drip_pools(deps: Deps) -> StdResult<DripPoolsResponse> {
     Ok(DripPoolsResponse {
         drip_pools
     })
-}
-
-pub fn query_total_power_at_height(
-    deps: Deps,
-    env: Env,
-    height: Option<u64>
-) -> StdResult<TotalPowerAtHeightResponse> {
-    let config_resp = query_config(deps)?;
-    let denom = deps.querier.query_bonded_denom()?;
-    let power = deps.querier.query_balance(config_resp.config.staking_module_address, denom)?;
-    Ok(TotalPowerAtHeightResponse { 
-        power: power.amount, 
-        height: height.unwrap_or(env.block.height)}) 
 }
 
