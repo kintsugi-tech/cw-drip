@@ -50,7 +50,9 @@ pub enum ExecuteMsg {
     /// Compute and distribute active drip pools shares to
     /// participants
     DistributeShares {},
-    WithdrawToken {},
+    /// Send sender shares to another account
+    SendShares {},
+    /// Burn all shares and withdraw all tokens
     WithdrawTokens {},
 }
 
