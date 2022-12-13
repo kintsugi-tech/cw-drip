@@ -2,21 +2,20 @@ use std::any::Any;
 
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal};
-use cw20::Cw20Coin;
+use cosmwasm_std::{Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal, Delegation};
+use cw20::{Cw20Coin, Cw20ExecuteMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg, BankSudo,};
 use cw_utils::Duration;
 pub use cw_multi_test::StakeKeeper;
 
-use crate::msg::{InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, DripToken, DripTokensResponse, ParticipantsResponse};
-
-pub const VAL1: &str = "val1";
-pub const VAL2: &str = "val2";
-pub const VAL3: &str = "val3";
+use crate::msg::{InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, DripToken, DripTokensResponse, ParticipantsResponse, ParticipantSharesResponse};
 
 pub const PAR1: &str = "participant1";
 pub const PAR2: &str = "participant2";
 pub const PAR3: &str = "participant3";
+
+pub const EPOCH: Duration = Duration::Height(10);
+pub const MIN_STAKING: Uint128 = Uint128::new(1_000_000);
 
 // Contains the initial configuration of the environment.
 #[derive(Debug)]
@@ -24,6 +23,7 @@ pub struct LabBuilder {
     pub contract_owner: String,
     pub native_token_denom: String,
     pub staking_address: String,
+    pub validators: Vec<String>,
 }
 
 pub struct TestLab {
@@ -56,6 +56,17 @@ pub fn cw20_contract() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
+// Helper function to create a Validator structure
+fn create_default_validator(validator: &str) -> Validator {
+    return Validator {
+        address: validator.to_string(),
+        commission: Default::default(),
+        max_commission: Default::default(),
+        max_change_rate: Default::default(),
+    }
+}
+
+
 impl LabBuilder {
     
     // Creates a new default environment
@@ -67,6 +78,7 @@ impl LabBuilder {
             native_token_denom: "ujuno".to_string(),
             // Imposed by the StakeKeeper
             staking_address: "staking_module".to_string(),
+            validators: vec!["validator1".to_string(), "validator2".to_string(), "validator3".to_string()],
         }    
     }
 
@@ -83,8 +95,8 @@ impl LabBuilder {
         // Instantiate drip contract
         let init_drip_msg = InstantiateMsg {
             staking_module_address: self.staking_address.clone(),
-            min_staking_amount: Uint128::new(1_000_000),
-            epoch_duration: Duration::Height(10)
+            min_staking_amount: MIN_STAKING,
+            epoch_duration: EPOCH,
         };
         let drip_addr = app.instantiate_contract (
             drip_id, 
@@ -95,15 +107,22 @@ impl LabBuilder {
             None,
         ).unwrap();
 
-        // let block_info = app.block_info();
+        let block_info = app.block_info();
 
         // Initialize the environment with funded addresses
         app.init_modules(
-            |router, _api, storage| -> AnyResult<()> {
+            |router, api, storage| -> AnyResult<()> {
                 router.staking.setup(
                     storage,
                     StakingInfo { bonded_denom: self.native_token_denom.clone(), unbonding_time: 60, apr: Decimal::percent(20) }
                 ).unwrap();
+
+                self.validators
+                    .iter()
+                    .for_each(|val| {
+                        let validator = create_default_validator(val);
+                        router.staking.add_validator(api, storage, &block_info, validator).unwrap();
+                    });
 
             Ok(())
         })
@@ -163,13 +182,28 @@ impl TestLab {
         })
     }
 
-    pub fn sudo_mint(mut self, address: String, coin: Coin) -> Self {
+    pub fn sudo_mint_1000(mut self, address: String, denom: String, multiplier: u128) -> Self {
+        let coin = Coin {
+            denom, 
+            amount: Uint128::new(1_000 * multiplier)
+        };
         self.app.sudo(SudoMsg::Bank(BankSudo::Mint {
             to_address: address,
             amount: vec![coin],
         }))
         .unwrap();
         self
+    }
+
+    pub fn create_delegation(
+        &mut self, 
+        sender: Addr, 
+        validator: String, 
+        amount: Coin
+    ) -> AppResponse {
+        let msg = StakingMsg::Delegate { validator, amount };
+        let resp = self.app.execute(sender, CosmosMsg::Staking(msg)).unwrap();
+        resp
     }
 
     pub fn query_participants(& self ) -> ParticipantsResponse {
@@ -179,6 +213,23 @@ impl TestLab {
             .unwrap();
         resp
     }
+
+    pub fn get_validators(self) -> Vec<Validator> {
+        let resp = self.app
+            .wrap()
+            .query_all_validators()
+            .unwrap();
+            resp
+    }
+
+    pub fn get_delegations(self, delegator: String) -> Vec<Delegation> {
+        let resp = self.app
+            .wrap()
+            .query_all_delegations(delegator)
+            .unwrap();
+        resp
+    }
+
     // Returns a specific drip pool 
     pub fn query_drip_pool(&self, token: String) -> DripPoolResponse {
         let resp: DripPoolResponse = self.app
@@ -206,6 +257,16 @@ impl TestLab {
         resp
     }
 
+    pub fn query_participant_shares(&self, participant: String) -> ParticipantSharesResponse {
+        let resp: ParticipantSharesResponse = self.app
+            .wrap()
+            .query_wasm_smart(
+                self.drip_address.clone(), 
+                &QueryMsg::ParticipantShares { address: participant })
+            .unwrap();
+        resp
+    }
+
     // Create a drip pool
     pub fn create_drip_pool(
         &mut self, 
@@ -223,6 +284,15 @@ impl TestLab {
                 epochs_number
             }, 
             funds, 
+        )
+    }
+
+    pub fn distribute_shares(&mut self) -> AnyResult<AppResponse>{
+        self.app.execute_contract(
+            Addr::unchecked(self.owner.clone()), 
+            Addr::unchecked(self.drip_address.clone()), 
+            &ExecuteMsg::DistributeShares {}, 
+            &[]
         )
     }
 
@@ -256,12 +326,3 @@ impl TestLab {
 
 }
 
-// Helper function to create a Validator structure
-fn create_default_validator(validator: &str) -> Validator {
-    return Validator {
-        address: validator.to_string(),
-        commission: Default::default(),
-        max_commission: Default::default(),
-        max_change_rate: Default::default(),
-    }
-}

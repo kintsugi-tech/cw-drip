@@ -28,8 +28,14 @@ pub enum ContractError {
     DripPoolNotFound { token: String },
 
     #[error("No drip pool active.")]
-    ZeroDripPoolActive {  },
+    ZeroActiveDripPool {},
 
     #[error("Tokens initial amount [{tokens_amount}] does not coincide with epochs number times tokens per epoch [{total_tokens}]")]
     WrongTokensAmount { tokens_amount: Uint128, total_tokens: Uint128},
+
+    #[error("Wait for distribution time")]
+    NoDistributionTime {},
+
+    #[error("No shares for this address")]
+    NoShares {},
 }

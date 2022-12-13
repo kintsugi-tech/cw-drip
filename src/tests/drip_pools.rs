@@ -1,9 +1,9 @@
-use cosmwasm_std::{Uint128, Addr, Coin};
+use cosmwasm_std::{Uint128, Addr};
 use cw20::Cw20Coin;
 
 use crate::{msg::DripToken, ContractError, state::{DripPool, CheckedDripToken}};
 
-use super::environment::{PAR1, PAR2, PAR3, LabBuilder};
+use super::environment::LabBuilder;
 
 #[test]
 fn zero_initial_amount() {
@@ -101,10 +101,7 @@ fn wrong_tokens_amount() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint(
-            drip_addr.clone(), 
-            Coin {denom: native.clone(), amount: Uint128::new(1_000_000)}
-        )
+        .sudo_mint_1000(drip_addr.clone(),native.clone(), 1000u128)
         .init_cw20(vec![
             Cw20Coin {
                 address: drip_addr.clone(),
@@ -162,10 +159,7 @@ fn funded_contract() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint(
-            drip_addr.clone(), 
-            Coin {denom: native.clone(), amount: Uint128::new(1_000_000)}
-        )
+        .sudo_mint_1000(drip_addr.clone(),native.clone(), 1000u128)
         .init_cw20(vec![
             Cw20Coin {
                 address:drip_addr.clone(), 
@@ -200,6 +194,7 @@ fn funded_contract() {
                 initial_amount: Uint128::new(10_000) 
             },
             actual_amount: Uint128::new(10_000),
+            tokens_to_withdraw: Uint128::new(0),
             tokens_per_epoch: Uint128::new(1_000),
             issued_shares: Uint128::zero(),
             epochs_number: 10u64,
@@ -231,11 +226,11 @@ fn funded_contract() {
         resp.drip_pool, 
         Some(DripPool {
             drip_token: CheckedDripToken::CW20 { 
-                symbol: "PYT".to_string(), 
-                address: Addr::unchecked(cw20_addr), 
+                address: cw20_addr, 
                 initial_amount: Uint128::new(1_000_000) 
             },
             actual_amount: Uint128::new(1_000_000),
+            tokens_to_withdraw: Uint128::new(0),
             tokens_per_epoch: Uint128::new(100_000),
             issued_shares: Uint128::zero(),
             epochs_number: 10u64,
@@ -251,10 +246,7 @@ fn drip_pool_already_exists() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint(
-            drip_addr.clone(), 
-            Coin {denom: native.clone(), amount: Uint128::new(1_000_000)}
-        )
+        .sudo_mint_1000(drip_addr.clone(),native.clone(), 1000u128)
         .init_cw20(vec![
             Cw20Coin {
                 address:drip_addr.clone(), 

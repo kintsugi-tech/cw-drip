@@ -1,10 +1,9 @@
-use cosmwasm_std::{entry_point, StdError, Addr};
+use cosmwasm_std::{entry_point, Addr};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
-use cw_utils::Duration;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse, ParticipantSharesResponse};
 use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS, DripPoolShares};
 
 
@@ -24,6 +23,8 @@ pub fn instantiate(
     let staking_address = deps.api.addr_validate(&msg.staking_module_address)?;
 
     // The contract owner is forced to be the address who send the InstantiateMsg
+    // this imposes the instantiation to be performed by the DAO. It will be the only
+    // address allowed to create drip pools.
     let config = Config {
         owner: info.sender,
         staking_module_address: staking_address,
@@ -34,6 +35,7 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
+    // Initialize other storages to use update on them later
     PARTICIPANTS.save(deps.storage, &Vec::new())?;
     DRIP_TOKENS.save(deps.storage, &Vec::new())?;
 
@@ -49,7 +51,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
    match msg {
     ExecuteMsg::Participate {} => execute_add_participant(deps, info),
-    ExecuteMsg::RemoveParticipation {  } => execute_remove_participant(deps, info), 
+    ExecuteMsg::RemoveParticipation {} => execute_remove_participant(deps, info), 
     ExecuteMsg::CreateDripPool { 
         token_info,
         tokens_per_epoch, 
@@ -57,7 +59,7 @@ pub fn execute(
     } => execute_create_drip_pool(deps, env, info, token_info,tokens_per_epoch, epochs_number),
     ExecuteMsg::UpdateDripPool {} => todo!(),
     ExecuteMsg::RemoveDripPool {} => todo!(),
-    ExecuteMsg::DistributeShares {  } => execute_distribute_shares(deps, env, info),
+    ExecuteMsg::DistributeShares {} => execute_distribute_shares(deps, env, info),
     ExecuteMsg::WithdrawToken {  } => todo!(),
     ExecuteMsg::WithdrawTokens {  } => todo!(),
    }
@@ -68,11 +70,12 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => {to_binary(&query_config(deps)?)}
-        QueryMsg::Participants {} => {to_binary(&query_participants(deps)?)}
-        QueryMsg::DripTokens {} => {to_binary(&query_drip_tokens(deps)?)}
-        QueryMsg::DripPool {token} => {to_binary(&query_drip_pool(deps, token)?)}
-        QueryMsg::DripPools {} => {to_binary(&query_drip_pools(deps)?)}
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Participants {} => to_binary(&query_participants(deps)?),
+        QueryMsg::DripTokens {} => to_binary(&query_drip_tokens(deps)?),
+        QueryMsg::DripPool { token } => to_binary(&query_drip_pool(deps, token)?),
+        QueryMsg::DripPools {} => to_binary(&query_drip_pools(deps)?),
+        QueryMsg::ParticipantShares { address } => to_binary(&query_participant_shares(deps, address)?)
     }
 }
 
@@ -128,9 +131,8 @@ pub fn execute_create_drip_pool(
     };
 
     // Basic checks on token_info
-    let drip_token = token_info.into_checked(deps.as_ref())?;
-    
-    drip_token.clone().validate_drip_amount(deps.as_ref(), env)?;
+    token_info.validate_drip_token(deps.as_ref())?;
+    let drip_token = token_info.validate_drip_amount(deps.as_ref(), env)?;
 
     let total_drip_amount = tokens_per_epoch.checked_mul(epochs_number.into()).unwrap();
 
@@ -150,6 +152,7 @@ pub fn execute_create_drip_pool(
                     DripPool { 
                         drip_token: drip_token.clone(), 
                         actual_amount: total_drip_amount,
+                        tokens_to_withdraw: Uint128::zero(),
                         tokens_per_epoch,
                         issued_shares: Uint128::zero(), 
                         epochs_number, 
@@ -175,23 +178,28 @@ pub fn execute_create_drip_pool(
     Ok(res)
 }
 
-fn execute_distribute_shares(mut deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+/// Message handler for the distribution of the active drip pools' shares to eligible participants.
+fn execute_distribute_shares(mut deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
-    let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
-
+    
     // Check if there is at least one drip pool to distribute shares
+    // TODO: maybe we can remove this error. Pools are removed the distribution after the last onebut this can be e
+    // easily changed.
+    let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
     if drip_tokens.is_empty() {
-        return Err(ContractError::ZeroDripPoolActive {});
+        return Err(ContractError::ZeroActiveDripPool {});
     }
+
+    // Initialize shares emitted. Shares emitted will be equal to the sum of the staked tokens
+    // of all eligible participants
+    let mut emitted_shares = Uint128::zero();
 
     // Check if pay time!
     if config.next_distribution_time.is_expired(&env.block) {
         let participants = PARTICIPANTS.load(deps.storage)?;
 
-        // Initialize shares emitted
-        let mut emitted_shares = Uint128::zero();
         for participant in participants {
+            // Query all delegation of the current participant
             let delegations = deps.querier.query_all_delegations(participant.clone())?;
 
             // TODO: add filter to remove micro delegations?
@@ -208,45 +216,68 @@ fn execute_distribute_shares(mut deps: DepsMut, env: Env, info: MessageInfo) -> 
                 emitted_shares += total_staked;
             }
         };
-        update_drip_pools_shares(deps, emitted_shares)?;
+
+        // Update pools
+        let tokens_to_retain = update_drip_pools(& mut deps, drip_tokens, emitted_shares)?;
+
+        DRIP_TOKENS.update(deps.storage, |_| -> StdResult<_> {
+            Ok(tokens_to_retain)
+        })?;
         
+    } else {
+        // TODO: add info on next distribution time
+        return Err(ContractError::NoDistributionTime {})
     }
-    todo!()
+
+    let res = Response::new()
+        .add_attribute("action", "distribute shares")
+        .add_attribute("emitted shares per pool", emitted_shares);
+    Ok(res)
 }
 
+/// Update the participant active pools shares based on staked amount.
 pub fn update_participant_shares<'a>(deps: &'a mut DepsMut, participant: &Addr, drip_tokens: Vec<String>, total_staked: Uint128) -> Result<(), ContractError> {
-    PARTICIPANTS_SHARES.update(deps.storage, &participant, |shares| -> StdResult<_> {
-    let  mut shares = shares.unwrap_or_default();
+    PARTICIPANTS_SHARES.update(deps.storage, participant, |shares| -> StdResult<_> {
+        let  mut shares = shares.unwrap_or_default();
         for drip_token in drip_tokens {
             let pool_position = shares.iter().position(|pool| pool.token == drip_token.clone());
-        match pool_position {
-            Some(position) => shares[position].totale_shares += total_staked,
-            None => shares.push(DripPoolShares {
-                token: drip_token.clone(),
-                totale_shares: total_staked,
-            })
-        };
-    }
-    Ok(shares)
+            // If position not found it is the first distribution so add to vector,
+            // otherwise update
+            match pool_position {
+                Some(position) => shares[position].total_shares += total_staked,
+                None => shares.push(DripPoolShares {
+                    token: drip_token.clone(),
+                    total_shares: total_staked,
+                })
+            };
+        }
+        Ok(shares)
     })?;
     Ok(())
 }
 
-/// Update the active drip pools by emitting shares and removing the distributed tokens.
-pub fn update_drip_pools_shares(deps: DepsMut, emitted_shares: Uint128) -> Result<(), ContractError> {
-    let drip_tokens = DRIP_TOKENS.load(deps.storage)?;
+/// Update the active drip pools by emitting shares and removing the distributed tokens from
+/// availability.
+pub fn update_drip_pools<'a>(deps: &'a mut DepsMut, drip_tokens: Vec<String>, emitted_shares: Uint128) -> Result<Vec<String>, ContractError> {
+    let mut tokens_to_retain: Vec<String> = vec![];
+    // Only token in the drip tokens vector are associated to active pools.
     for drip_token in drip_tokens {
         DRIP_POOLS.update(deps.storage, drip_token.clone(), |drip_pool| -> StdResult<_> {
+            // Drip pool has been initialized during pool creation so .unwrap() should be ok.
             let mut drip_pool = drip_pool.unwrap();
+            // If drip pool is valid distribute, else remove drip pool.
             if drip_pool.current_epoch <= drip_pool.epochs_number && drip_pool.actual_amount >= drip_pool.tokens_per_epoch {
                 drip_pool.issued_shares += emitted_shares;
                 drip_pool.actual_amount -= drip_pool.tokens_per_epoch;
+                drip_pool.tokens_to_withdraw += drip_pool.tokens_per_epoch;
                 drip_pool.current_epoch += 1;
+                tokens_to_retain.push(drip_token.clone())
             };
+
             Ok(drip_pool)
         })?;
     }        
-    Ok(())     
+    Ok(tokens_to_retain)     
 }
 
 
@@ -292,3 +323,11 @@ fn query_drip_pools(deps: Deps) -> StdResult<DripPoolsResponse> {
     })
 }
 
+fn query_participant_shares(deps: Deps, address: String) -> StdResult<ParticipantSharesResponse> {
+    let address = &deps.api.addr_validate(&address)?;
+    let participant_shares = PARTICIPANTS_SHARES.may_load(deps.storage, address)?;
+    match participant_shares {
+        Some(shares) => return Ok(ParticipantSharesResponse{ shares }),
+        None => return Ok(ParticipantSharesResponse { shares: vec![] }),
+    };
+}

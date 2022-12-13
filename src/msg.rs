@@ -1,16 +1,17 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Uint128, Addr};
+use cosmwasm_std::{Uint128, Addr, Deps, Env};
+use cw20::Cw20QueryMsg;
 use cw_utils::Duration;
 
-use crate::state::{Config, DripPool};
+use crate::{state::{Config, DripPool, DripPoolShares, CheckedDripToken}, ContractError};
 
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Address of the chain's staking module
     pub staking_module_address: String,
-    /// Minimum native token staked to participate
+    /// Minimum native tokens staked to participate
     pub min_staking_amount: Uint128,
-    /// Duration of a single epoch for all the drip pool
+    /// Duration of a single epoch for all drip pools
     pub epoch_duration: Duration,
 }
 
@@ -71,12 +72,20 @@ pub enum QueryMsg {
     /// Get all drip pools
     #[returns(DripPoolsResponse)]
     DripPools {},
+    // Get participant shares
+    #[returns(ParticipantSharesResponse)]
+    ParticipantShares {address: String},
 }
 
 // Query response structures
 #[cw_serde]
 pub struct ConfigResponse {
     pub config: Config
+}
+
+#[cw_serde]
+pub struct ParticipantSharesResponse {
+    pub shares: Vec<DripPoolShares>
 }
 
 #[cw_serde]
@@ -117,4 +126,51 @@ pub struct AddParticipantResponse {
     pub eligible: bool,
 }
 
+impl DripToken {
+    // If Cw20 check if the contract exists.
+    pub fn validate_drip_token(&self, deps: Deps) -> Result<(), ContractError> {
+        match self {
+            DripToken::Native {denom: _, initial_amount: _} => {
+               Ok(()) 
+            }
+            DripToken::CW20 { address, initial_amount: _ } => {
+                let address = deps.api.addr_validate(&address)?;
+                let _resp: cw20::TokenInfoResponse = deps.querier.query_wasm_smart(
+                    address.clone(), 
+                    &cw20::Cw20QueryMsg::TokenInfo {},
+                )?;
+                Ok(())    
+            }
+        }
+    }
 
+    // Check if the smart contract has the required funds for the drip
+    // TODO: probably we should set a minimum amount of tokens taht can be distributed
+    pub fn validate_drip_amount(self, deps: Deps, env: Env) -> Result<CheckedDripToken, ContractError> {
+        match self {
+            Self::Native { denom, initial_amount } => {
+                if initial_amount.is_zero() {
+                    return Err(ContractError::ZeroTokenPool {})
+                };
+                let native_token_balance = deps.querier.query_balance(env.contract.address.to_string(), denom.clone())?;
+                if native_token_balance.amount < initial_amount.clone() {
+                    return Err(ContractError::NoFundedContract { token: denom.clone(), amount: initial_amount.clone()});
+                };
+                Ok(CheckedDripToken::Native { denom, initial_amount })
+            },
+            Self::CW20 {address, initial_amount } => {
+                if initial_amount.is_zero() {
+                    return Err(ContractError::ZeroTokenPool {})
+                };
+                let cw20_token_balance: cw20::BalanceResponse = deps.querier.query_wasm_smart(
+                    address.clone(), 
+                    &Cw20QueryMsg::Balance { address: env.contract.address.to_string() }
+                )?;
+                if cw20_token_balance.balance < initial_amount.clone() {
+                        return Err(ContractError::NoFundedContract { token: address.to_string(), amount: initial_amount.clone()});
+                };
+                Ok(CheckedDripToken::CW20 { address, initial_amount })
+            }
+        }
+    }
+}
