@@ -1,64 +1,61 @@
-on: [push, pull_request]
+version: 2.1
 
-name: Continuous integration
+executors:
+  builder:
+    docker:
+      - image: buildpack-deps:trusty
 
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
+  docker-image:
+    executor: builder
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - checkout
+      - setup_remote_docker
+        docker_layer_caching: true
+      - run:
+          name: Build Docker artifact
+          command: docker build --pull -t "cosmwasm/cw-gitpod-base:${CIRCLE_SHA1}" .
+      - run:
+          name: Push application Docker image to docker hub
+          command: |
+            if [ "${CIRCLE_BRANCH}" = "master" ]; then
+              docker tag "cosmwasm/cw-gitpod-base:${CIRCLE_SHA1}" cosmwasm/cw-gitpod-base:latest
+              docker login --password-stdin -u "$DOCKER_USER" \<<<"$DOCKER_PASS"
+              docker push cosmwasm/cw-gitpod-base:latest
+              docker logout
+            fi
 
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
+  docker-tagged:
+    executor: builder
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - checkout
+      - setup_remote_docker
+        docker_layer_caching: true
+      - run:
+          name: Push application Docker image to docker hub
+          command: |
+            docker tag "cosmwasm/cw-gitpod-base:${CIRCLE_SHA1}" "cosmwasm/cw-gitpod-base:${CIRCLE_TAG}"
+            docker login --password-stdin -u "$DOCKER_USER" \<<<"$DOCKER_PASS"
+            docker push
+            docker logout
 
-  fmt:
-    name: Rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+workflows:
+  version: 2
+  test-suite:
+    jobs:
+      # this is now a slow process... let's only run on master
+      - docker-image:
+          filters:
+            branches:
+              only:
+                - master
+      - docker-tagged:
+          filters:
+            tags:
+              only:
+                - /^v.*/
+            branches:
+              ignore:
+                - /.*/
+            requires:
+              - docker-image

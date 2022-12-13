@@ -60,12 +60,10 @@ pub fn execute(
     ExecuteMsg::UpdateDripPool {} => todo!(),
     ExecuteMsg::RemoveDripPool {} => todo!(),
     ExecuteMsg::DistributeShares {} => execute_distribute_shares(deps, env, info),
-    ExecuteMsg::SendShares{  } => todo!(),
-    ExecuteMsg::WithdrawTokens {  } => execute_withdraw_tokens(deps, env, info),
+    ExecuteMsg::WithdrawToken {  } => todo!(),
+    ExecuteMsg::WithdrawTokens {  } => todo!(),
    }
 }
-
-
 
 
 
@@ -235,10 +233,6 @@ fn execute_distribute_shares(mut deps: DepsMut, env: Env, _info: MessageInfo) ->
         .add_attribute("action", "distribute shares")
         .add_attribute("emitted shares per pool", emitted_shares);
     Ok(res)
-}
-
-fn execute_withdraw_tokens(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    todo!()
 }
 
 /// Update the participant active pools shares based on staked amount.
