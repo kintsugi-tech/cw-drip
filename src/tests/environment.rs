@@ -6,7 +6,7 @@ use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, Staki
 use cw_utils::Duration;
 pub use cw_multi_test::StakeKeeper;
 
-use crate::msg::{InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, DripToken, DripTokensResponse, ParticipantsResponse, ParticipantSharesResponse};
+use crate::msg::{InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, UnvalidatedDripToken, DripTokensResponse, ParticipantsResponse, ParticipantSharesResponse};
 
 pub const PAR1: &str = "participant1";
 pub const PAR2: &str = "participant2";
@@ -268,7 +268,7 @@ impl TestLab {
     // Create a drip pool
     pub fn create_drip_pool(
         &mut self, 
-        token_info: DripToken, 
+        token_info: UnvalidatedDripToken, 
         tokens_per_epoch: Uint128, 
         epochs_number: u64, 
         funds: &[Coin]

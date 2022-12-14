@@ -1,10 +1,10 @@
-use cosmwasm_std::{entry_point, Addr};
+use cosmwasm_std::{entry_point, Addr, CosmosMsg};
 use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse,
+    ExecuteMsg, InstantiateMsg, QueryMsg, UnvalidatedDripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse,
      DripPoolsResponse, DripPoolResponse, ParticipantSharesResponse
 };
 use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS, DripPoolShares};
@@ -33,7 +33,6 @@ pub fn instantiate(
         staking_module_address: staking_address,
         min_staking_amount: msg.min_staking_amount,
         epoch_duration: msg.epoch_duration,
-        last_distribution_time: None,
         next_distribution_time: msg.epoch_duration.after(&env.block), 
     };
 
@@ -42,7 +41,9 @@ pub fn instantiate(
     PARTICIPANTS.save(deps.storage, &Vec::new())?;
     DRIP_TOKENS.save(deps.storage, &Vec::new())?;
 
-    Ok(Response::default())
+    Ok(Response::new()
+        .add_attribute("action", "instantiate")
+    )
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -67,10 +68,6 @@ pub fn execute(
     ExecuteMsg::WithdrawTokens {  } => execute_withdraw_tokens(deps, env, info),
    }
 }
-
-
-
-
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -126,7 +123,7 @@ pub fn execute_create_drip_pool(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    token_info: DripToken,
+    token_info: UnvalidatedDripToken,
     tokens_per_epoch: Uint128,
     epochs_number: u64, 
 ) -> Result<Response, ContractError> {
@@ -296,19 +293,27 @@ pub fn update_drip_pools(deps: & mut DepsMut, drip_tokens: Vec<String>, emitted_
 }
 
 fn execute_withdraw_tokens(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    PARTICIPANTS_SHARES.update(deps.storage, &info.sender, |user_pools| {
-        match user_pools {
-            Some(pools) => {
-                pools
-                    .iter()
-                    .for_each(|pool| {
-                        
-                    });
-                todo!()
-            }, 
-            None => return Err(ContractError::AddressNotAssociatedToShares),
-        }
-    })?; 
+    let participant_shares = PARTICIPANTS_SHARES.may_load(deps.storage, &info.sender)?;
+    let mut msgs: Vec<CosmosMsg> = vec![]; 
+    match participant_shares {
+        Some(participant_shares) => {
+            participant_shares 
+                .iter()
+                .for_each(|shares| {
+                    let drip_pool = DRIP_POOLS.load(deps.storage, shares.token.clone()).unwrap();
+                    let tokens = drip_pool.tokens_from_shares(shares.total_shares);
+                    msgs.push(drip_pool.send_tokens_message(tokens, &info.sender).unwrap());
+                    DRIP_POOLS.update(deps.storage, info.sender.into(), |mut drip_pool| {
+                        if let Some(pool) = drip_pool{
+                            pool.actual_amount -= tokens;
+                            pool.issued_shares -= shares.total_shares;
+                        }
+                        Ok(drip_pool)
+                    })
+                })
+        },
+        None => return Err(ContractError::AddressNotAssociatedToShares)
+    }
     todo!()
 }
 

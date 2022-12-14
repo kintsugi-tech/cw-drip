@@ -3,7 +3,7 @@ use cosmwasm_std::{Uint128, Addr, Deps, Env};
 use cw20::Cw20QueryMsg;
 use cw_utils::Duration;
 
-use crate::{state::{Config, DripPool, DripPoolShares, CheckedDripToken}, ContractError};
+use crate::{state::{Config, DripPool, DripPoolShares, DripToken}, ContractError};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -17,14 +17,14 @@ pub struct InstantiateMsg {
 
 /// Unvalidated drip token
 #[cw_serde]
-pub enum DripToken {
+pub enum UnvalidatedDripToken {
     Native {
         /// Token denom
         denom: String,
         /// Initial amount of the drip pool
         initial_amount: Uint128,
     },
-    CW20 {
+    Cw20 {
         /// CW20 smart contract address
         address: String,
         /// Initial amount of the drip pool
@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     RemoveParticipation {},
     /// Create a distribution drip pool
     CreateDripPool {
-        token_info: DripToken,
+        token_info: UnvalidatedDripToken,
         tokens_per_epoch: Uint128,
         epochs_number: u64,
     },
@@ -126,27 +126,11 @@ pub struct AddParticipantResponse {
     pub eligible: bool,
 }
 
-impl DripToken {
-    // If Cw20 check if the contract exists.
-    pub fn validate_drip_token(&self, deps: Deps) -> Result<(), ContractError> {
-        match self {
-            DripToken::Native {denom: _, initial_amount: _} => {
-               Ok(()) 
-            }
-            DripToken::CW20 { address, initial_amount: _ } => {
-                let address = deps.api.addr_validate(address)?;
-                let _resp: cw20::TokenInfoResponse = deps.querier.query_wasm_smart(
-                    address, 
-                    &cw20::Cw20QueryMsg::TokenInfo {},
-                )?;
-                Ok(())    
-            }
-        }
-    }
-
-    // Check if the smart contract has the required funds for the drip
-    // TODO: probably we should set a minimum amount of tokens taht can be distributed
-    pub fn validate_drip_amount(self, deps: Deps, env: Env) -> Result<CheckedDripToken, ContractError> {
+impl UnvalidatedDripToken {
+    /// The function performs necessary check for the creation of a pool:
+    /// 1. check if initial amount is not zero;
+    /// 2. check if the contract has the specificed initial amount;
+    pub fn validate(self, deps: Deps, env: Env) -> Result<DripToken, ContractError> {
         match self {
             Self::Native { denom, initial_amount } => {
                 if initial_amount.is_zero() {
@@ -156,9 +140,9 @@ impl DripToken {
                 if native_token_balance.amount < initial_amount {
                     return Err(ContractError::NoFundedContract { token: denom, amount: initial_amount});
                 };
-                Ok(CheckedDripToken::Native { denom, initial_amount })
+                Ok(DripToken::Native { denom, amount: initial_amount })
             },
-            Self::CW20 {address, initial_amount } => {
+            Self::Cw20 {address, initial_amount } => {
                 if initial_amount.is_zero() {
                     return Err(ContractError::ZeroTokenPool {})
                 };
@@ -169,7 +153,7 @@ impl DripToken {
                 if cw20_token_balance.balance < initial_amount {
                         return Err(ContractError::NoFundedContract { token: address, amount: initial_amount});
                 };
-                Ok(CheckedDripToken::CW20 { address, initial_amount })
+                Ok(DripToken::CW20 { address: deps.api.addr_validate(&address)?, amount: initial_amount })
             }
         }
     }

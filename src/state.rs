@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Uint128, CosmosMsg, StdError, BankMsg, Coin, WasmMsg, to_binary};
 use cw_storage_plus::{Item, Map};
 use cw_utils::{Duration, Expiration};
 
@@ -14,8 +14,6 @@ pub struct Config {
     pub min_staking_amount: Uint128,
     /// Duration of each reward epoch
     pub epoch_duration: Duration,
-    /// Creation block
-    pub last_distribution_time: Option<Duration>,
     /// Epoch number of the last distribution
     pub next_distribution_time: Expiration, 
 }
@@ -24,9 +22,9 @@ pub struct Config {
 #[cw_serde]
 pub struct DripPool {
     /// Token to be distributed
-    pub drip_token : CheckedDripToken,
-    /// Remaining amount to distribute
-    pub actual_amount: Uint128,
+    pub drip_token : DripToken,
+    /// Initial drip amount 
+    pub initial_amount: Uint128,
     /// Tokens that can be withdrawed
     pub tokens_to_withdraw: Uint128,
     /// Tokens to distribute at every epoch
@@ -42,22 +40,21 @@ pub struct DripPool {
 
 /// Drip token variants after initial amount check
 #[cw_serde]
-pub enum CheckedDripToken {
+pub enum DripToken {
     Native {
         /// Token denom
         denom: String,
-        /// Initial amount of the drip pool
-        initial_amount: Uint128,
+        /// Available tokens
+        amount: Uint128,
     },
     CW20 {
         /// CW20 smart contract address
-        address: String,
-        /// Initial amount of the drip pool
-        initial_amount: Uint128,
+        address: Addr,
+        /// Available tokens 
+        amount: Uint128,
     }
 }
 
-/// Structure for managing participant shares for one drip token
 #[cw_serde]
 pub struct DripPoolShares {
     /// Denom or address of the token
@@ -82,24 +79,63 @@ pub const PARTICIPANTS_SHARES: Map<&Addr, Vec<DripPoolShares>> = Map::new("parti
 pub const DRIP_POOLS: Map<String, DripPool> = Map::new("drip_pools");
 
 impl DripPool {
+
+    /// Given an amount of shares computes the associated tokens and remove both tokens
+    /// and shares from the pool.
+    pub fn remove_tokens_and_shares(&mut self, shares: Uint128) {
+        let tokens = self.tokens_from_shares(shares);
+        match self.drip_token {
+            DripToken::Native { denom: _, amount } => amount -= tokens,
+            DripToken::CW20 { address: _, amount } => amount -= tokens,
+        }
+        self.issued_shares -= shares
+
+    }
+
     /// Compute tokens associated to a certain amount of shares
     pub fn tokens_from_shares(&self, shares: Uint128) -> Uint128 {
+        let residual_amount: Uint128;
+        match self.drip_token {
+            DripToken::Native { denom: _, amount } => residual_amount = amount,
+            DripToken::CW20 { address: _, amount } => residual_amount = amount,
+        }
         let tokens = shares
-            .multiply_ratio(self.actual_amount, self.issued_shares);
+            .multiply_ratio(residual_amount, self.issued_shares);
         tokens
-        
+    }
+
+    pub fn send_tokens_message(self, send_amount: Uint128, recipient: &Addr) -> Result<CosmosMsg, StdError> {
+        Ok(match self.drip_token {
+            DripToken::Native { denom, amount: _} => BankMsg::Send {
+                to_address: recipient.to_string(),
+                amount: vec![Coin { denom, amount: send_amount }],
+            }
+            .into(),
+            DripToken::CW20 {
+                address,
+                amount,
+            } => WasmMsg::Execute {
+                contract_addr: address.to_string(),
+                msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                    recipient: recipient.to_string(),
+                    amount: send_amount,
+                })?,
+                funds: vec![],
+            }
+            .into(),
+        })
     }
 }
 
-impl CheckedDripToken {
+impl DripToken {
     // Getter for initial amount of the drip token
-    pub fn get_initial_amount(&self) -> Uint128 {
+    pub fn get_available_amount(&self) -> Uint128 {
         match self {
-            CheckedDripToken::Native {denom: _, initial_amount} => {
-                *initial_amount
+            DripToken::Native {denom: _, amount} => {
+                *amount
             }
-            CheckedDripToken::CW20 { address: _, initial_amount } => {
-                *initial_amount
+            DripToken::CW20 { address: _, amount } => {
+                *amount
             }
         }
     }
@@ -107,15 +143,14 @@ impl CheckedDripToken {
     // Getter for the drip token unique identifier
     pub fn get_token(&self) -> String {
         match self {
-            CheckedDripToken::Native {denom, initial_amount: _} => {
+            DripToken::Native {denom, amount: _} => {
                 denom.clone()
             }
             // We have to use address because is the only unique
-            CheckedDripToken::CW20 { address, initial_amount: _ } => {
-                address.clone()
+            DripToken::CW20 { address, amount: _ } => {
+                address.to_string().clone()
             }
         }
     }
-
 
 }

@@ -1,7 +1,7 @@
 use cosmwasm_std::{Uint128};
 use cw20::Cw20Coin;
 
-use crate::{msg::DripToken, ContractError, state::{DripPool, CheckedDripToken}};
+use crate::{msg::UnvalidatedDripToken, ContractError, state::{DripPool, DripToken}};
 
 use super::environment::LabBuilder;
 
@@ -17,7 +17,7 @@ fn zero_initial_amount() {
 
     // With native pool
     let err: ContractError = test_lab.create_drip_pool(
-        DripToken::Native {
+        UnvalidatedDripToken::Native {
             denom: test_lab.native.clone(), 
             initial_amount: Uint128::zero() 
         },
@@ -33,7 +33,7 @@ fn zero_initial_amount() {
 
     // With cw20 pool
     let err: ContractError = test_lab.create_drip_pool(
-            DripToken::CW20 {
+            UnvalidatedDripToken::Cw20 {
                 address: test_lab.cw20_address.clone(), 
                 initial_amount: Uint128::zero() 
             },
@@ -62,7 +62,7 @@ fn no_funded_contract() {
 
     // With native pool
     let err: ContractError = test_lab.create_drip_pool(
-        DripToken::Native {
+        UnvalidatedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(1_000_000) 
         },
@@ -79,7 +79,7 @@ fn no_funded_contract() {
     // With cw20 pool
     let cw20_addr = test_lab.cw20_address.clone();
     let err: ContractError = test_lab.create_drip_pool(
-        DripToken::CW20 {
+        UnvalidatedDripToken::Cw20 {
             address: cw20_addr, 
             initial_amount: Uint128::new(1_000_000) 
         },
@@ -111,7 +111,7 @@ fn wrong_tokens_amount() {
    
     // With native pool
     let err: ContractError = test_lab.create_drip_pool(
-        DripToken::Native {
+        UnvalidatedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(1_000_000) 
         },
@@ -133,7 +133,7 @@ fn wrong_tokens_amount() {
     // With cw20 pool
     let cw20_addr = test_lab.cw20_address.clone();
     let err: ContractError = test_lab.create_drip_pool(
-        DripToken::CW20 {
+        UnvalidatedDripToken::Cw20 {
             address: cw20_addr, 
             initial_amount: Uint128::new(1_000) 
         },
@@ -169,7 +169,7 @@ fn funded_contract() {
 
     // With native pool
     let _resp = test_lab.create_drip_pool(
-        DripToken::Native {
+        UnvalidatedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -189,7 +189,7 @@ fn funded_contract() {
     assert_eq!(
         resp.drip_pool, 
         Some(DripPool {
-            drip_token: CheckedDripToken::Native { 
+            drip_token: DripToken::Native { 
                 denom: test_lab.native.to_string(), 
                 initial_amount: Uint128::new(10_000) 
             },
@@ -205,7 +205,7 @@ fn funded_contract() {
     // With cw20 pool
     let cw20_addr = test_lab.cw20_address.clone();
     let _resp = test_lab.create_drip_pool(
-        DripToken::CW20 {
+        UnvalidatedDripToken::Cw20 {
             address: cw20_addr.clone(), 
             initial_amount: Uint128::new(1_000_000) 
         },
@@ -225,7 +225,7 @@ fn funded_contract() {
     assert_eq!(
         resp.drip_pool, 
         Some(DripPool {
-            drip_token: CheckedDripToken::CW20 { 
+            drip_token: DripToken::CW20 { 
                 address: cw20_addr, 
                 initial_amount: Uint128::new(1_000_000) 
             },
@@ -255,7 +255,7 @@ fn drip_pool_already_exists() {
         );
 
     let _resp = test_lab.create_drip_pool(
-        DripToken::Native {
+        UnvalidatedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -266,7 +266,7 @@ fn drip_pool_already_exists() {
     .unwrap();
 
     let err: ContractError = test_lab.create_drip_pool(
-        DripToken::Native {
+        UnvalidatedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
