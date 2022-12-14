@@ -134,9 +134,9 @@ impl DripToken {
                Ok(()) 
             }
             DripToken::CW20 { address, initial_amount: _ } => {
-                let address = deps.api.addr_validate(&address)?;
+                let address = deps.api.addr_validate(address)?;
                 let _resp: cw20::TokenInfoResponse = deps.querier.query_wasm_smart(
-                    address.clone(), 
+                    address, 
                     &cw20::Cw20QueryMsg::TokenInfo {},
                 )?;
                 Ok(())    
@@ -153,8 +153,8 @@ impl DripToken {
                     return Err(ContractError::ZeroTokenPool {})
                 };
                 let native_token_balance = deps.querier.query_balance(env.contract.address.to_string(), denom.clone())?;
-                if native_token_balance.amount < initial_amount.clone() {
-                    return Err(ContractError::NoFundedContract { token: denom.clone(), amount: initial_amount.clone()});
+                if native_token_balance.amount < initial_amount {
+                    return Err(ContractError::NoFundedContract { token: denom, amount: initial_amount});
                 };
                 Ok(CheckedDripToken::Native { denom, initial_amount })
             },
@@ -166,8 +166,8 @@ impl DripToken {
                     address.clone(), 
                     &Cw20QueryMsg::Balance { address: env.contract.address.to_string() }
                 )?;
-                if cw20_token_balance.balance < initial_amount.clone() {
-                        return Err(ContractError::NoFundedContract { token: address.to_string(), amount: initial_amount.clone()});
+                if cw20_token_balance.balance < initial_amount {
+                        return Err(ContractError::NoFundedContract { token: address, amount: initial_amount});
                 };
                 Ok(CheckedDripToken::CW20 { address, initial_amount })
             }

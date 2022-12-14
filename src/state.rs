@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128, CheckedMultiplyRatioError};
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 use cw_utils::{Duration, Expiration};
 
@@ -96,10 +96,10 @@ impl CheckedDripToken {
     pub fn get_initial_amount(&self) -> Uint128 {
         match self {
             CheckedDripToken::Native {denom: _, initial_amount} => {
-                return initial_amount.clone()
+                *initial_amount
             }
             CheckedDripToken::CW20 { address: _, initial_amount } => {
-                return initial_amount.clone()
+                *initial_amount
             }
         }
     }
@@ -108,11 +108,11 @@ impl CheckedDripToken {
     pub fn get_token(&self) -> String {
         match self {
             CheckedDripToken::Native {denom, initial_amount: _} => {
-                return denom.clone()
+                denom.clone()
             }
             // We have to use address because is the only unique
             CheckedDripToken::CW20 { address, initial_amount: _ } => {
-                return address.clone()
+                address.clone()
             }
         }
     }

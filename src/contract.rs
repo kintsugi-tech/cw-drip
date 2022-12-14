@@ -1,8 +1,6 @@
 use cosmwasm_std::{entry_point, Addr};
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128, QuerierWrapper};
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
 use cw2::set_contract_version;
-use cw20::Expiration;
-use cw_utils::Duration;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -34,7 +32,7 @@ pub fn instantiate(
         owner: info.sender,
         staking_module_address: staking_address,
         min_staking_amount: msg.min_staking_amount,
-        epoch_duration: msg.epoch_duration.clone(),
+        epoch_duration: msg.epoch_duration,
         last_distribution_time: None,
         next_distribution_time: msg.epoch_duration.after(&env.block), 
     };
@@ -143,7 +141,7 @@ pub fn execute_create_drip_pool(
 
     let total_drip_amount = tokens_per_epoch.checked_mul(epochs_number.into()).unwrap();
 
-    if drip_token.clone().get_initial_amount() != total_drip_amount {
+    if drip_token.get_initial_amount() != total_drip_amount {
         return Err(ContractError::WrongTokensAmount {tokens_amount: drip_token.get_initial_amount(), total_tokens: total_drip_amount})
     }
 
@@ -179,7 +177,7 @@ pub fn execute_create_drip_pool(
 
     let res = Response::new()
         .add_attribute("action", "add_drip_pool")
-        .add_attribute("token", drip_token.clone().get_token())
+        .add_attribute("token", drip_token.get_token())
         .add_attribute("amount", drip_token.get_initial_amount())
         .add_attribute("epochs_number", epochs_number.to_string());
     Ok(res)
@@ -275,7 +273,7 @@ pub fn update_participant_shares<'a>(deps: &'a mut DepsMut, participant: &Addr, 
 
 /// Update the active drip pools by emitting shares and removing the distributed tokens from
 /// availability.
-pub fn update_drip_pools<'a>(deps: &'a mut DepsMut, drip_tokens: Vec<String>, emitted_shares: Uint128) -> Result<Vec<String>, ContractError> {
+pub fn update_drip_pools(deps: & mut DepsMut, drip_tokens: Vec<String>, emitted_shares: Uint128) -> Result<Vec<String>, ContractError> {
     let mut tokens_to_retain: Vec<String> = vec![];
     // Only token in the drip tokens vector are associated to active pools.
     for drip_token in drip_tokens {
@@ -351,7 +349,7 @@ fn query_drip_pools(deps: Deps) -> StdResult<DripPoolsResponse> {
     let drip_pools = drip_tokens
         .into_iter()
         .map(|token| {
-            let drip_pool = DRIP_POOLS.load(deps.storage, token.clone())?;
+            let drip_pool = DRIP_POOLS.load(deps.storage, token)?;
             Ok(drip_pool)
         })
         .collect::<StdResult<Vec<DripPool>>>()?;
