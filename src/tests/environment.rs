@@ -1,10 +1,8 @@
-use std::any::Any;
-
 use anyhow::Result as AnyResult;
 
 use cosmwasm_std::{Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal, Delegation};
-use cw20::{Cw20Coin, Cw20ExecuteMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, StakingSudo, SudoMsg, BankSudo,};
+use cw20::{Cw20Coin};
+use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, SudoMsg, BankSudo,};
 use cw_utils::Duration;
 pub use cw_multi_test::StakeKeeper;
 

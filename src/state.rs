@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Uint128, CheckedMultiplyRatioError};
 use cw_storage_plus::{Item, Map};
 use cw_utils::{Duration, Expiration};
 
@@ -81,7 +81,15 @@ pub const PARTICIPANTS_SHARES: Map<&Addr, Vec<DripPoolShares>> = Map::new("parti
 // Drip pools info
 pub const DRIP_POOLS: Map<String, DripPool> = Map::new("drip_pools");
 
-
+impl DripPool {
+    /// Compute tokens associated to a certain amount of shares
+    pub fn tokens_from_shares(&self, shares: Uint128) -> Uint128 {
+        let tokens = shares
+            .multiply_ratio(self.actual_amount, self.issued_shares);
+        tokens
+        
+    }
+}
 
 impl CheckedDripToken {
     // Getter for initial amount of the drip token
@@ -110,17 +118,4 @@ impl CheckedDripToken {
     }
 
 
-}
-
-#[cfg(test)]
-#[test]
-fn test_get_initial_amount() {
-    let token = CheckedDripToken::Native { denom: "ujuno".to_string(), initial_amount: Uint128::zero() };
-    let amount = token.get_initial_amount();
-    assert_eq!(amount, Uint128::zero());
-
-    let token = CheckedDripToken::Native { denom: "ujuno".to_string(), initial_amount: Uint128::new(1_000) };
-    let amount = token.get_initial_amount();
-    assert_ne!(amount, Uint128::zero());
-    assert_eq!(amount, Uint128::new(1000));
 }

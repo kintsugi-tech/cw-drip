@@ -1,4 +1,4 @@
-use cosmwasm_std::{Uint128, Addr};
+use cosmwasm_std::{Uint128};
 use cw20::Cw20Coin;
 
 use crate::{msg::DripToken, ContractError, state::{DripPool, CheckedDripToken}};

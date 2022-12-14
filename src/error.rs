@@ -38,4 +38,7 @@ pub enum ContractError {
 
     #[error("No shares for this address")]
     NoShares {},
+
+    #[error("The sender has not shares to withdraw tokens")]
+    AddressNotAssociatedToShares,
 }

@@ -1,9 +1,14 @@
 use cosmwasm_std::{entry_point, Addr};
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
+use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128, QuerierWrapper};
 use cw2::set_contract_version;
+use cw20::Expiration;
+use cw_utils::Duration;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse, DripPoolsResponse, DripPoolResponse, ParticipantSharesResponse};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, DripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse,
+     DripPoolsResponse, DripPoolResponse, ParticipantSharesResponse
+};
 use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS, DripPoolShares};
 
 
@@ -60,15 +65,17 @@ pub fn execute(
     ExecuteMsg::UpdateDripPool {} => todo!(),
     ExecuteMsg::RemoveDripPool {} => todo!(),
     ExecuteMsg::DistributeShares {} => execute_distribute_shares(deps, env, info),
-    ExecuteMsg::WithdrawToken {  } => todo!(),
-    ExecuteMsg::WithdrawTokens {  } => todo!(),
+    ExecuteMsg::SendShares {  } => todo!(),
+    ExecuteMsg::WithdrawTokens {  } => execute_withdraw_tokens(deps, env, info),
    }
 }
 
 
 
+
+
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Participants {} => to_binary(&query_participants(deps)?),
@@ -178,7 +185,7 @@ pub fn execute_create_drip_pool(
     Ok(res)
 }
 
-/// Message handler for the distribution of the active drip pools' shares to eligible participants.
+/// Handler for the distribution of the active drip pools' shares to eligible participants.
 fn execute_distribute_shares(mut deps: DepsMut, env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     
@@ -220,9 +227,18 @@ fn execute_distribute_shares(mut deps: DepsMut, env: Env, _info: MessageInfo) ->
         // Update pools
         let tokens_to_retain = update_drip_pools(& mut deps, drip_tokens, emitted_shares)?;
 
+        // Update drip tokens vector removing expired pool
         DRIP_TOKENS.update(deps.storage, |_| -> StdResult<_> {
             Ok(tokens_to_retain)
         })?;
+
+        // Update new distribution time
+        // TODO: we can do better. Here the next distribution time is alway epoch_duration after 
+        // the distribution block.
+        CONFIG.update(deps.storage, |mut config| -> StdResult<_>{
+            config.next_distribution_time = config.epoch_duration.after(&env.block);
+            Ok(config)
+        });
         
     } else {
         // TODO: add info on next distribution time
@@ -235,6 +251,7 @@ fn execute_distribute_shares(mut deps: DepsMut, env: Env, _info: MessageInfo) ->
     Ok(res)
 }
 
+// TODO: handle situation in which update miss one epoch or is in delay wrt the shares release
 /// Update the participant active pools shares based on staked amount.
 pub fn update_participant_shares<'a>(deps: &'a mut DepsMut, participant: &Addr, drip_tokens: Vec<String>, total_staked: Uint128) -> Result<(), ContractError> {
     PARTICIPANTS_SHARES.update(deps.storage, participant, |shares| -> StdResult<_> {
@@ -280,6 +297,26 @@ pub fn update_drip_pools<'a>(deps: &'a mut DepsMut, drip_tokens: Vec<String>, em
     Ok(tokens_to_retain)     
 }
 
+fn execute_withdraw_tokens(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+    PARTICIPANTS_SHARES.update(deps.storage, &info.sender, |user_pools| {
+        match user_pools {
+            Some(pools) => {
+                pools
+                    .iter()
+                    .for_each(|pool| {
+                        
+                    });
+                todo!()
+            }, 
+            None => return Err(ContractError::AddressNotAssociatedToShares),
+        }
+    })?; 
+    todo!()
+}
+
+pub fn update_pool(deps: DepsMut, sender: Addr, pool_shares: &DripPoolShares) -> Result<(), ContractError> {
+   todo!() 
+}
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
