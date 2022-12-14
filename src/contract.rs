@@ -86,14 +86,11 @@ pub fn execute_add_participant(
     deps: DepsMut,
     info: MessageInfo,
 ) -> Result<Response, ContractError>{
-    
-    // TODO: check if faster than looking at PARTICIPANTS
-    if PARTICIPANTS_SHARES.has(deps.storage, &info.sender) {
-        return Err(ContractError::AlreadyParticipant {});
-    };
-
-    // Add the sender as a participant
-    PARTICIPANTS.update(deps.storage, |mut participants| -> StdResult<_> {
+    // Add the non participant sender to participants
+    PARTICIPANTS.update(deps.storage, |mut participants: Vec<Addr>| -> Result<Vec<Addr>, ContractError> {
+        if participants.contains(&info.sender) {
+            return Err(ContractError::AlreadyParticipant {})
+        }
         participants.push(info.sender.clone());
         Ok(participants)
     })?;
@@ -103,7 +100,7 @@ pub fn execute_add_participant(
 
     let res = Response::new()
         .add_attribute("action", "add_participant")
-        .add_attribute("addess", info.sender);
+        .add_attribute("address", info.sender);
     Ok(res)
 }
 
