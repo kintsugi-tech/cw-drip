@@ -103,7 +103,7 @@ pub fn execute_add_participant(
     // Add the non participant sender to participants
     PARTICIPANTS.update(deps.storage, |mut participants| {
         if participants.contains(&info.sender) {
-            return Err(StdError::generic_err("sender is already a participant"))
+            return Err(ContractError::AlreadyParticipant {})
         }
         participants.push(info.sender.clone());
         Ok(participants)
@@ -152,53 +152,55 @@ pub fn execute_create_drip_pool(
     tokens_per_epoch: Uint128,
     epochs_number: u64, 
 ) -> Result<Response, ContractError> {
-    // Just the contract owner can create drip pools.
+    // Only owner can create drip pools
     let config = CONFIG.load(deps.storage)?;
     if config.owner != info.sender {
         return Err(ContractError::Unauthorized {})
     };
 
+    // At least on epoch pool
     if epochs_number < 1 {
         return Err(ContractError::LessThanOneEpoch {})
     }
-    // Basic checks on token_info
+
+    // Basic checks on token
     let drip_token = token_info.validate(deps.as_ref(), env)?;
 
-    // Compute the required amount for the drip
+    // Required amount for the drip
     let total_drip_amount = tokens_per_epoch
         .checked_mul(epochs_number.into()).map_err(StdError::overflow)?;
 
     let available_amount = drip_token.get_available_amount();
 
     if available_amount != total_drip_amount {
-        return Err(ContractError::WrongTokensAmount {tokens_amount: available_amount, total_tokens: total_drip_amount})
+        return Err(ContractError::WrongTokensAmount {
+            tokens_amount: available_amount, 
+            total_tokens: total_drip_amount
+        })
     }
 
-    // Check if drip pool already exists or create it
+    // Check if drip pool exists or create it
     DRIP_POOLS.update(
         deps.storage, 
         drip_token.clone().get_token(), 
-        |drip_pool| -> Result<DripPool, ContractError> {
-        match drip_pool {
-            Some(_)  => Err(ContractError::DripPoolAlreadyExists {}),
-            None => {
-                Ok(
-                    DripPool { 
-                        drip_token: drip_token.clone(), 
-                        actual_amount: total_drip_amount,
-                        tokens_to_withdraw: Uint128::zero(),
-                        tokens_per_epoch,
-                        issued_shares: Uint128::zero(), 
-                        epochs_number, 
-                        current_epoch: 0u64
-                    }
-                )
+        |drip_pool| {
+            if drip_pool.is_some() {
+                return Err(ContractError::DripPoolAlreadyExists {})
             }
-        } 
-    })?;
+            Ok(
+                DripPool { 
+                    drip_token: drip_token.clone(),
+                    initial_amount: drip_token.get_available_amount(), 
+                    tokens_per_epoch,
+                    withdrawable_tokens: Uint128::zero(),
+                    issued_shares: Uint128::zero(), 
+                    epochs_number, 
+                    epoch: 0u64
+                }
+            )
+        })?;
     
-    
-    // Save the drip token denom or address into storage
+    // Add token to the list of active pools
     DRIP_TOKENS.update(deps.storage, |mut drip_tokens| -> StdResult<_>{
         drip_tokens.push(drip_token.clone().get_token());
         Ok(drip_tokens)
@@ -207,7 +209,7 @@ pub fn execute_create_drip_pool(
     let res = Response::new()
         .add_attribute("action", "add_drip_pool")
         .add_attribute("token", drip_token.get_token())
-        .add_attribute("amount", drip_token.get_initial_amount())
+        .add_attribute("amount", drip_token.get_available_amount())
         .add_attribute("epochs_number", epochs_number.to_string());
     Ok(res)
 }
