@@ -5,8 +5,6 @@ use cw20::Cw20QueryMsg;
 use crate::{state::{Config, DripPool, DripPoolShares, DripToken}, ContractError};
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Address of the chain's staking module
-    pub staking_module_address: String,
     /// Minimum native tokens staked to participate
     pub min_staking_amount: Uint128,
     /// Duration of a single epoch in seconds for all drip pools. 

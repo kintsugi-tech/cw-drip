@@ -3,7 +3,6 @@ use anyhow::Result as AnyResult;
 use cosmwasm_std::{Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal, Delegation};
 use cw20::{Cw20Coin};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, SudoMsg, BankSudo,};
-use cw_utils::Duration;
 pub use cw_multi_test::StakeKeeper;
 
 use crate::msg::{InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, UncheckedDripToken, DripTokensResponse, ParticipantsResponse, ParticipantSharesResponse};
@@ -12,7 +11,7 @@ pub const PAR1: &str = "participant1";
 pub const PAR2: &str = "participant2";
 pub const PAR3: &str = "participant3";
 
-pub const EPOCH: Duration = Duration::Height(10);
+pub const EPOCH: u64 = 10;
 pub const MIN_STAKING: Uint128 = Uint128::new(1_000_000);
 
 // Contains the initial configuration of the environment.
@@ -20,7 +19,6 @@ pub const MIN_STAKING: Uint128 = Uint128::new(1_000_000);
 pub struct LabBuilder {
     pub contract_owner: String,
     pub native_token_denom: String,
-    pub staking_address: String,
     pub validators: Vec<String>,
 }
 
@@ -28,7 +26,6 @@ pub struct TestLab {
     pub app: App,
     pub owner: String,
     pub native: String,
-    pub staking_addr: String,
     pub drip_address: String,
     pub cw20_address: String,
 
@@ -74,8 +71,6 @@ impl LabBuilder {
             contract_owner: "dao".to_string(),
             // Native staking token denom
             native_token_denom: "ujuno".to_string(),
-            // Imposed by the StakeKeeper
-            staking_address: "staking_module".to_string(),
             validators: vec!["validator1".to_string(), "validator2".to_string(), "validator3".to_string()],
         }    
     }
@@ -92,7 +87,6 @@ impl LabBuilder {
 
         // Instantiate drip contract
         let init_drip_msg = InstantiateMsg {
-            staking_module_address: self.staking_address.clone(),
             min_staking_amount: MIN_STAKING,
             epoch_duration: EPOCH,
         };
@@ -130,7 +124,6 @@ impl LabBuilder {
             app,
             owner: owner.to_string(),
             native: self.native_token_denom,
-            staking_addr: self.staking_address,
             drip_address: drip_addr.to_string(),
             // Initialized as string None to make test easier 
             cw20_address: "None".to_string(), 
