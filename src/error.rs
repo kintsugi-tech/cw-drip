@@ -12,36 +12,33 @@ pub enum ContractError {
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 
-    #[error("AlreadyPartecipant")]
+    #[error("sender is already a participant")]
     AlreadyParticipant {},
 
-    #[error("DripAlreadyExists")]
+    #[error("drip pool already exists")]
     DripPoolAlreadyExists {},
 
-    #[error("Smart contract has not enough tokens. Missing: [{token}] [{amount}]")]
+    #[error("smart contract has not enough tokens, missing: [{token}] [{amount}]")]
     NoFundedContract { token: String, amount: Uint128 },
 
-    #[error("ZeroTokenPool")]
+    #[error("zero token pool is not allowed")]
     ZeroTokenPool {},
 
-    #[error("Drip pool for token [{token}] not found.")]
+    #[error("rip pool for token [{token}] not found.")]
     DripPoolNotFound { token: String },
 
-    #[error("No drip pool active.")]
+    #[error("no active drip pool")]
     ZeroActiveDripPool {},
 
-    #[error("Tokens initial amount [{tokens_amount}] does not coincide with epochs number times tokens per epoch [{total_tokens}]")]
+    #[error("initial tokens amount [{tokens_amount}] does not coincide with epochs_number X tokens_per_epoch: [{total_tokens}]")]
     WrongTokensAmount { tokens_amount: Uint128, total_tokens: Uint128},
 
-    #[error("Wait for distribution time")]
+    #[error("wait for distribution time")]
     NoDistributionTime {},
 
-    #[error("No shares for this address")]
+    #[error("no shares for this address")]
     NoShares {},
 
-    #[error("The sender has not shares to withdraw tokens")]
-    AddressNotAssociatedToShares,
-
-    #[error("The minimum number of epochs is 1.")]
+    #[error("the minimum number of epochs is 1")]
     LessThanOneEpoch {  },
 }

@@ -1,17 +1,26 @@
 use cosmwasm_std::{entry_point, Addr, CosmosMsg, StdError};
-use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128};
+use cosmwasm_std::{
+    Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128
+};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, UncheckedDripToken, ParticipantsResponse, ConfigResponse, DripTokensResponse,
-     DripPoolsResponse, DripPoolResponse, ParticipantSharesResponse
+    ExecuteMsg, InstantiateMsg, QueryMsg, UncheckedDripToken, ParticipantsResponse, ConfigResponse, 
+    DripTokensResponse, DripPoolsResponse, DripPoolResponse, ParticipantSharesResponse
 };
-use crate::state::{Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS, DripPoolShares};
+use crate::state::{
+    Config, CONFIG, PARTICIPANTS_SHARES, DripPool, PARTICIPANTS, DRIP_TOKENS, DRIP_POOLS, 
+    DripPoolShares
+};
 
-// version info for migration info
+// Version info for migration info
 const CONTRACT_NAME: &str = "crates.io:cw-drip";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+//==================================================================================================
+// INSTANTIATE 
+//==================================================================================================
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -24,7 +33,7 @@ pub fn instantiate(
 
     // The contract owner is forced to be the address who send the InstantiateMsg
     // this imposes the instantiation to be performed by the DAO. It will be the only
-    // address allowed to create drip pools.
+    // address allowed to create drip pools
     let next_distribution_time = env.block.time.seconds() +  msg.epoch_duration;
     let config = Config {
         owner: info.sender,
@@ -34,6 +43,7 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
+
     // Initialize other storages to use update on them later
     PARTICIPANTS.save(deps.storage, &Vec::new())?;
     DRIP_TOKENS.save(deps.storage, &Vec::new())?;
@@ -43,6 +53,10 @@ pub fn instantiate(
         .add_attribute("next_distribution", next_distribution_time.to_string())
     )
 }
+
+//==================================================================================================
+// EXECUTE 
+//==================================================================================================
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -75,11 +89,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::DripTokens {} => to_binary(&query_drip_tokens(deps)?),
         QueryMsg::DripPool { token } => to_binary(&query_drip_pool(deps, token)?),
         QueryMsg::DripPools {} => to_binary(&query_drip_pools(deps)?),
-        QueryMsg::ParticipantShares { address } => to_binary(&query_participant_shares(deps, address)?)
+        QueryMsg::ParticipantShares { 
+            address 
+        } => to_binary(&query_participant_shares(deps, address)?)
     }
 }
 
-/// Add the info.sender to the PARTICIPANTS vector or raise an error if it is already inside it.
+/// Add the info.sender to the PARTICIPANTS vector or raise an error if it is already inside it
 pub fn execute_add_participant(
     deps: DepsMut,
     info: MessageInfo,
@@ -93,11 +109,13 @@ pub fn execute_add_participant(
         Ok(participants)
     })?;
 
-    // Initialize participant vector of shares 
+    // Here we have two cases:
+    // 1. First time participant -> initialize drip pool shares
+    // 2. User has previously removed participation -> do nothing
     PARTICIPANTS_SHARES.update(
         deps.storage, 
         &info.sender, 
-        |user_shares| -> StdResult<Vec<DripPoolShares>> {
+        |user_shares| -> StdResult<_> {
             let empty_vec: Vec<DripPoolShares> = vec![];
             user_shares.map_or(Ok(empty_vec), |shares| Ok(shares))
         }
@@ -109,9 +127,12 @@ pub fn execute_add_participant(
     Ok(res)
 }
 
-/// Retains elements of the PARTICIPANTS vector that are different from the info.sender. No check is made if the 
-/// info.sender was a participant or not.
-pub fn execute_remove_participant(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+/// Retains elements of the PARTICIPANTS vector that are different from the info.sender. 
+/// No check is made if the info.sender was a participant or not
+pub fn execute_remove_participant(
+    deps: DepsMut, 
+    info: MessageInfo
+) -> Result<Response, ContractError> {
     PARTICIPANTS.update(deps.storage, |mut participants| -> StdResult<_>{
         participants.retain(|address| *address != info.sender);
         Ok(participants)
@@ -144,7 +165,8 @@ pub fn execute_create_drip_pool(
     let drip_token = token_info.validate(deps.as_ref(), env)?;
 
     // Compute the required amount for the drip
-    let total_drip_amount = tokens_per_epoch.checked_mul(epochs_number.into()).map_err(StdError::overflow)?;
+    let total_drip_amount = tokens_per_epoch
+        .checked_mul(epochs_number.into()).map_err(StdError::overflow)?;
 
     let available_amount = drip_token.get_available_amount();
 
@@ -153,7 +175,10 @@ pub fn execute_create_drip_pool(
     }
 
     // Check if drip pool already exists or create it
-    DRIP_POOLS.update(deps.storage, drip_token.clone().get_token(), |drip_pool| -> Result<DripPool, ContractError> {
+    DRIP_POOLS.update(
+        deps.storage, 
+        drip_token.clone().get_token(), 
+        |drip_pool| -> Result<DripPool, ContractError> {
         match drip_pool {
             Some(_)  => Err(ContractError::DripPoolAlreadyExists {}),
             None => {
