@@ -41,4 +41,7 @@ pub enum ContractError {
 
     #[error("The sender has not shares to withdraw tokens")]
     AddressNotAssociatedToShares,
+
+    #[error("The minimum number of epochs is 1.")]
+    LessThanOneEpoch {  },
 }

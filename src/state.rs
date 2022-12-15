@@ -1,21 +1,18 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128, CosmosMsg, StdError, BankMsg, Coin, WasmMsg, to_binary};
 use cw_storage_plus::{Item, Map};
-use cw_utils::{Duration, Expiration};
 
 /// Smart contract configuration parameters
 #[cw_serde]
 pub struct Config {
     /// Owner of the contract
     pub owner: Addr,
-    /// Address of the chain's staking module
-    pub staking_module_address: Addr,
     // Minimum amount of native token staked to be allowed to participate 
     pub min_staking_amount: Uint128,
     /// Duration of each reward epoch
-    pub epoch_duration: Duration,
+    pub epoch_duration: u64,
     /// Epoch number of the last distribution
-    pub next_distribution_time: Expiration, 
+    pub next_distribution_time: u64, 
 }
 
 /// Drip pool information saved on storage
@@ -26,7 +23,7 @@ pub struct DripPool {
     /// Initial drip amount 
     pub initial_amount: Uint128,
     /// Tokens that can be withdrawed
-    pub tokens_to_withdraw: Uint128,
+    pub withdrawable_tokens: Uint128,
     /// Tokens to distribute at every epoch
     pub tokens_per_epoch: Uint128,
     /// Shares issued to participants
@@ -34,11 +31,11 @@ pub struct DripPool {
     /// Total distribution epoch
     pub epochs_number: u64,
     /// Current distribution epoch. After distributing the first time
-    /// current_epoch will be 1 and so on.
-    pub current_epoch: u64,
+    /// epoch will be 1 and so on.
+    pub epoch: u64,
 }
 
-/// Drip token variants after initial amount check
+/// Drip token variants after basic checks
 #[cw_serde]
 pub enum DripToken {
     Native {

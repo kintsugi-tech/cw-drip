@@ -2,7 +2,7 @@ use cosmwasm_std::{Uint128, Addr, Coin};
 use cw20::Cw20Coin;
 use cw_utils::Duration;
 
-use crate::{msg::UnvalidatedDripToken, ContractError, state::{DripPoolShares}};
+use crate::{msg::UncheckedDripToken, ContractError, state::{DripPoolShares}};
 
 use super::environment::{EPOCH, PAR1, PAR2, PAR3, LabBuilder};
 
@@ -34,7 +34,7 @@ pub fn no_distribution_time() {
     
     // With native pool
     let _resp = test_lab.create_drip_pool(
-        UnvalidatedDripToken::Native {
+        UncheckedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -75,7 +75,7 @@ pub fn no_min_staking() {
 
     // With native pool
     let _resp = test_lab.create_drip_pool(
-        UnvalidatedDripToken::Native {
+        UncheckedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -126,7 +126,7 @@ pub fn distribute_single() {
 
     // With native pool
     let _resp = test_lab.create_drip_pool(
-        UnvalidatedDripToken::Native {
+        UncheckedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -197,7 +197,7 @@ pub fn distribute_multiple() {
 
     // With native pool
     let _resp = test_lab.create_drip_pool(
-        UnvalidatedDripToken::Native {
+        UncheckedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -330,7 +330,7 @@ pub fn multiple_drip_pools() {
 
     // With native pool
     let _resp = test_lab.create_drip_pool(
-        UnvalidatedDripToken::Native {
+        UncheckedDripToken::Native {
             denom: test_lab.native.to_string(), 
             initial_amount: Uint128::new(10_000) 
         },
@@ -355,7 +355,7 @@ pub fn multiple_drip_pools() {
 
     // Introduce second drip pool
     let _resp = test_lab.create_drip_pool(
-        UnvalidatedDripToken::Cw20 { 
+        UncheckedDripToken::Cw20 { 
             address: test_lab.cw20_address.clone(), 
             initial_amount: Uint128::new(50_000) 
         },

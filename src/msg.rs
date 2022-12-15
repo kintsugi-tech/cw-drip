@@ -1,35 +1,24 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Uint128, Addr, Deps, Env};
 use cw20::Cw20QueryMsg;
-use cw_utils::Duration;
 
 use crate::{state::{Config, DripPool, DripPoolShares, DripToken}, ContractError};
-
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Address of the chain's staking module
     pub staking_module_address: String,
     /// Minimum native tokens staked to participate
     pub min_staking_amount: Uint128,
-    /// Duration of a single epoch for all drip pools
-    pub epoch_duration: Duration,
+    /// Duration of a single epoch in seconds for all drip pools. 
+    /// Examples https://www.nexcess.net/web-tools/unix-timestamp-converter/
+    pub epoch_duration: u64,
 }
 
-/// Unvalidated drip token
+/// Drip token that has to be validated
 #[cw_serde]
-pub enum UnvalidatedDripToken {
-    Native {
-        /// Token denom
-        denom: String,
-        /// Initial amount of the drip pool
-        initial_amount: Uint128,
-    },
-    Cw20 {
-        /// CW20 smart contract address
-        address: String,
-        /// Initial amount of the drip pool
-        initial_amount: Uint128,
-    }
+pub enum UncheckedDripToken {
+    Native { denom: String, initial_amount: Uint128 },
+    Cw20 { address: String, initial_amount: Uint128 }
 }
 
 #[cw_serde]
@@ -41,7 +30,7 @@ pub enum ExecuteMsg {
     RemoveParticipation {},
     /// Create a distribution drip pool
     CreateDripPool {
-        token_info: UnvalidatedDripToken,
+        token_info: UncheckedDripToken,
         tokens_per_epoch: Uint128,
         epochs_number: u64,
     },
@@ -126,8 +115,8 @@ pub struct AddParticipantResponse {
     pub eligible: bool,
 }
 
-impl UnvalidatedDripToken {
-    /// The function performs necessary check for the creation of a pool:
+impl UncheckedDripToken {
+    /// The function wil:
     /// 1. check if initial amount is not zero;
     /// 2. check if the contract has the specificed initial amount;
     pub fn validate(self, deps: Deps, env: Env) -> Result<DripToken, ContractError> {
