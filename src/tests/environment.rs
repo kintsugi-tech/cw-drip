@@ -1,9 +1,6 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{
-    Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal, 
-    Delegation
-};
+use cosmwasm_std::{Addr, Coin, Validator, Uint128, Empty, CosmosMsg, StakingMsg, Decimal};
 use cw20::{Cw20Coin};
 use cw_multi_test::{
     App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, SudoMsg, BankSudo
@@ -232,22 +229,6 @@ impl TestLab {
         resp.balance
     }
 
-    pub fn get_validators(self) -> Vec<Validator> {
-        let resp = self.app
-            .wrap()
-            .query_all_validators()
-            .unwrap();
-            resp
-    }
-
-    pub fn get_delegations(self, delegator: String) -> Vec<Delegation> {
-        let resp = self.app
-            .wrap()
-            .query_all_delegations(delegator)
-            .unwrap();
-        resp
-    }
-
     // Returns a specific drip pool 
     pub fn query_drip_pool(&self, token: String) -> DripPoolResponse {
         let resp: DripPoolResponse = self.app
@@ -339,16 +320,6 @@ impl TestLab {
             &ExecuteMsg::RemoveParticipation {}, 
             &[],    
         )
-    }
-   
-    fn create_delegator(self, delegator: &str, validator: &str) -> FullDelegation {
-        return FullDelegation { 
-            delegator: Addr::unchecked(delegator.to_string()), 
-            validator: validator.to_string(), 
-            amount: Coin { denom: self.native , amount: Uint128::new(1_000_000) }, 
-            can_redelegate: Default::default(), 
-            accumulated_rewards: Default::default() 
-        }
     }
 
 }
