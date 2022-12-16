@@ -19,7 +19,7 @@ pub const PAR1: &str = "participant1";
 pub const PAR2: &str = "participant2";
 pub const PAR3: &str = "participant3";
 
-pub const EPOCH: u64 = 10;
+pub const EPOCH: u64 = 10; // seconds
 pub const MIN_STAKING: Uint128 = Uint128::new(1_000_000);
 
 // Contains the initial configuration of the environment.
@@ -174,10 +174,10 @@ impl TestLab {
         self
     }
 
-    pub fn advance_blocks(&mut self, added_blocks: u64) {
+    pub fn advance_blocks(&mut self, added_seconds: u64) {
         self.app.update_block(|block| {
-            block.height += added_blocks;
-            block.time = block.time.plus_seconds(added_blocks * 5);
+            block.height += added_seconds / 5;
+            block.time = block.time.plus_seconds(added_seconds);
         })
     }
 

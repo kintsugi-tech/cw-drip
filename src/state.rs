@@ -64,18 +64,18 @@ impl DripPool {
     /// and shares from the pool.
     pub fn remove_tokens_and_shares(&mut self, shares: Uint128) {
         let tokens = self.tokens_from_shares(shares);
-        match self.drip_token {
-            DripToken::Native { denom: _, mut amount } => amount -= tokens,
-            DripToken::CW20 { address: _, mut amount } => amount -= tokens,
-        }
-        self.issued_shares -= shares
+        self.withdrawable_tokens -= tokens;
+        self.issued_shares -= shares;
 
     }
 
     pub fn remove_available_tokens(&mut self, tokens: Uint128) {
-        match self.drip_token {
-            DripToken::Native { denom: _, mut amount } => amount -= tokens,
-            DripToken::CW20 { address: _, mut amount } => amount -= tokens,
+        match self.drip_token.clone() {
+            DripToken::Native { denom, amount } => {
+                    self.drip_token = DripToken::Native { denom, amount: amount - tokens };
+            },
+            DripToken::CW20 { address, amount } => 
+                self.drip_token = DripToken::CW20 { address, amount: amount - tokens },
         }
     }
 
@@ -91,11 +91,11 @@ impl DripPool {
     }
 
     pub fn send_tokens_message(
-        self, 
+        &self, 
         send_amount: Uint128, 
         recipient: &Addr
     ) -> Result<CosmosMsg, StdError> {
-        Ok(match self.drip_token {
+        Ok(match self.drip_token.clone() {
             DripToken::Native { denom, amount: _} => BankMsg::Send {
                 to_address: recipient.to_string(),
                 amount: vec![Coin { denom, amount: send_amount }],

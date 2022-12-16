@@ -1,8 +1,7 @@
 use cosmwasm_std::{Uint128, Addr, Coin};
 use cw20::Cw20Coin;
-use cw_utils::Duration;
 
-use crate::{msg::UncheckedDripToken, ContractError, state::{DripPoolShares}};
+use crate::{msg::UncheckedDripToken, ContractError, state::{DripPool, DripToken}};
 
 use super::environment::{EPOCH, PAR1, PAR2, PAR3, LabBuilder};
 
@@ -84,10 +83,25 @@ pub fn no_min_staking() {
         &[],    
     )
     .unwrap();
-   
-    if let Duration::Height(blocks) = EPOCH {
-        test_lab.advance_blocks(blocks);
-    }
+    
+    let resp = test_lab.query_drip_pool(test_lab.native.to_string());
+    assert_eq!(
+        resp.drip_pool, 
+        Some(DripPool {
+            drip_token: DripToken::Native { 
+                denom: test_lab.native.to_string(), 
+                amount: Uint128::new(10_000) 
+            },
+            initial_amount: Uint128::new(10_000),
+            withdrawable_tokens: Uint128::new(0),
+            tokens_per_epoch: Uint128::new(1_000),
+            issued_shares: Uint128::zero(),
+            epochs_number: 10u64,
+            epoch: 0u64,
+        })
+    ); 
+
+    test_lab.advance_blocks(EPOCH);
     
     let _resp = test_lab.distribute_shares()
         .unwrap();
@@ -136,17 +150,21 @@ pub fn distribute_single() {
     )
     .unwrap();
 
-    if let Duration::Height(blocks) = EPOCH {
-        test_lab.advance_blocks(blocks);
-    }
+    test_lab.advance_blocks(EPOCH);
     
     let _resp = test_lab.distribute_shares()
         .unwrap();
 
     let resp = test_lab.query_drip_pool(native.clone());
-    assert_eq!(resp.drip_pool.map(|pool| pool.issued_shares).unwrap(), shares);
+    if let Some(pool) = resp.drip_pool {
+        assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(9_000));
+        assert_eq!(pool.issued_shares, Uint128::new(1_000_000));
+        assert_eq!(pool.withdrawable_tokens, Uint128::new(1_000));
+    }
 
-    let resp = test_lab.query_participant_shares(PAR1.to_string());
+
+    let resp = test_lab
+        .query_participant_shares(PAR1.to_string());
     assert_eq!(resp.shares.len(), 1)
 
 }
@@ -208,18 +226,16 @@ pub fn distribute_multiple() {
     .unwrap();
 
     // First distribution
-    if let Duration::Height(blocks) = EPOCH {
-        test_lab.advance_blocks(blocks);
-    }
+    test_lab.advance_blocks(EPOCH);
     
     let _resp = test_lab.distribute_shares()
         .unwrap();
 
     let resp = test_lab.query_drip_pool(native.clone());
     if let Some(pool) = resp.drip_pool {
-        assert_eq!(pool.actual_amount, Uint128::new(9_000));
+        assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(9_000));
         assert_eq!(pool.issued_shares, Uint128::new(6_000_000));
-        assert_eq!(pool.tokens_to_withdraw, Uint128::new(1_000));
+        assert_eq!(pool.withdrawable_tokens, Uint128::new(1_000));
     }
 
     let resp = test_lab.query_participant_shares(PAR1.to_string());
@@ -232,18 +248,16 @@ pub fn distribute_multiple() {
     assert_eq!(resp.shares.len(), 1);
 
     // Second distribution
-    if let Duration::Height(blocks) = EPOCH {
-        test_lab.advance_blocks(blocks);
-    }
+    test_lab.advance_blocks(EPOCH);
     
     let _resp = test_lab.distribute_shares()
         .unwrap();
 
     let resp = test_lab.query_drip_pool(native.clone());
     if let Some(pool) = resp.drip_pool {
-        assert_eq!(pool.actual_amount, Uint128::new(8_000));
+        assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(8_000));
         assert_eq!(pool.issued_shares, Uint128::new(12_000_000));
-        assert_eq!(pool.tokens_to_withdraw, Uint128::new(2_000));
+        assert_eq!(pool.withdrawable_tokens, Uint128::new(2_000));
     }
 
     let resp = test_lab.query_participant_shares(PAR1.to_string());
@@ -252,16 +266,11 @@ pub fn distribute_multiple() {
     let resp = test_lab.query_participant_shares(PAR2.to_string());
     assert_eq!(resp.shares.len(), 1);
 
-    let resp = test_lab.query_participant_shares(PAR3.to_string());
-    assert_eq!(resp.shares.len(), 1);
-
     // Distribute all drip tokens
     let mut i = 0;
     while i < 8 {
-        if let Duration::Height(blocks) = EPOCH {
-            test_lab.advance_blocks(blocks);
-        }
-        
+        test_lab.advance_blocks(EPOCH);
+
         let _resp = test_lab.distribute_shares()
             .unwrap();
 
@@ -269,30 +278,20 @@ pub fn distribute_multiple() {
     }
     let resp = test_lab.query_drip_pool(native.clone());
     if let Some(pool) = resp.drip_pool {
-        assert_eq!(pool.actual_amount, Uint128::new(0));
+        assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(0));
         assert_eq!(pool.issued_shares, Uint128::new(10 * 6_000_000));
-        assert_eq!(pool.tokens_to_withdraw, Uint128::new(10_000));
+        assert_eq!(pool.withdrawable_tokens, Uint128::new(10_000));
     }
    
-    // Another distribution round will not change anything
-    if let Duration::Height(blocks) = EPOCH {
-            test_lab.advance_blocks(blocks);
-    }
-
-    let _resp = test_lab.distribute_shares()
-        .unwrap();
-
     let resp = test_lab.query_drip_pool(native.clone());
     if let Some(pool) = resp.drip_pool {
-        assert_eq!(pool.actual_amount, Uint128::new(0));
+        assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(0));
         assert_eq!(pool.issued_shares, Uint128::new(10 * 6_000_000));
-        assert_eq!(pool.tokens_to_withdraw, Uint128::new(10_000));
+        assert_eq!(pool.withdrawable_tokens, Uint128::new(10_000));
     }
     
     // Another distribution round will throw an error.
-    if let Duration::Height(blocks) = EPOCH {
-            test_lab.advance_blocks(blocks);
-    }   
+    test_lab.advance_blocks(EPOCH); 
     let err: ContractError = test_lab.distribute_shares()
         .unwrap_err()
         .downcast()
@@ -340,9 +339,7 @@ pub fn multiple_drip_pools() {
     )
     .unwrap();
 
-    if let Duration::Height(blocks) = EPOCH {
-        test_lab.advance_blocks(blocks);
-    }
+    test_lab.advance_blocks(EPOCH);
     
     let _resp = test_lab.distribute_shares()
         .unwrap();
@@ -365,9 +362,7 @@ pub fn multiple_drip_pools() {
     )
     .unwrap();
 
-    if let Duration::Height(blocks) = EPOCH {
-        test_lab.advance_blocks(blocks);
-    }
+    test_lab.advance_blocks(EPOCH);
     
     let _resp = test_lab.distribute_shares()
         .unwrap();
@@ -375,17 +370,13 @@ pub fn multiple_drip_pools() {
     let resp = test_lab.query_participant_shares(PAR1.to_string());
     assert_eq!(resp.shares.len(), 2);
     assert_eq!(
-        resp.shares[0], 
-        DripPoolShares {
-            token: test_lab.native.clone(),
-            total_shares: Uint128::new(2_000_000)
-    });
-    assert_eq!(
-        resp.shares[1], 
-        DripPoolShares {
-            token: test_lab.cw20_address.clone(),
-            total_shares: Uint128::new(1_000_000)
-    });
-
-
+        resp.shares, 
+        vec![(
+            test_lab.cw20_address.clone(),
+            Uint128::new(1_000_000)
+        ), (
+            test_lab.native.clone(),
+            Uint128::new(2_000_000)
+        )]
+    );
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{entry_point, Addr, StdError, Order};
+use cosmwasm_std::{entry_point, Addr, StdError, Order, CosmosMsg};
 use cosmwasm_std::{
     Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, to_binary, Uint128
 };
@@ -215,7 +215,7 @@ fn execute_distribute_shares(
     let mut emitted_shares = Uint128::zero();
 
     // Check if pay time!
-    if config.next_distribution_time < env.block.time.seconds() {
+    if config.next_distribution_time <= env.block.time.seconds() {
         let participants = PARTICIPANTS.load(deps.storage)?;
 
         for participant in participants {
@@ -282,7 +282,11 @@ pub fn update_participant_shares(
     Ok(())
 }
 
-pub fn update_drip_pools(deps: &mut DepsMut, drip_tokens: Vec<String>, emitted_shares: Uint128) -> Result<Vec<String>, ContractError> {
+pub fn update_drip_pools(
+    deps: &mut DepsMut, 
+    drip_tokens: Vec<String>, 
+    emitted_shares: Uint128
+) -> Result<Vec<String>, ContractError> {
     let mut tokens_to_retain: Vec<String> = vec![];
     // Only token in the drip tokens vector are associated to active pools.
     for drip_token in drip_tokens {
@@ -297,7 +301,7 @@ pub fn update_drip_pools(deps: &mut DepsMut, drip_tokens: Vec<String>, emitted_s
                     return Err(ContractError::InvalidActiveDripPool {})
                 }
 
-                if drip_pool.drip_token.get_available_amount() >= drip_pool.tokens_per_epoch {
+                if drip_pool.drip_token.get_available_amount() < drip_pool.tokens_per_epoch {
                     return Err(ContractError::DripPoolHasNotENoughFunds)
                 }
 
@@ -316,9 +320,38 @@ pub fn update_drip_pools(deps: &mut DepsMut, drip_tokens: Vec<String>, emitted_s
     Ok(tokens_to_retain)     
 }
 
-fn execute_withdraw_tokens(_deps: DepsMut, _env: Env, _info: MessageInfo) -> Result<Response, ContractError> {
-    todo!()
+fn execute_withdraw_tokens(
+    deps: DepsMut, 
+    _env: Env, 
+    info: MessageInfo
+) -> Result<Response, ContractError> {
+    let res: StdResult<Vec<_>> = PARTICIPANTS_SHARES.prefix(&info.sender)
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+    let participant_shares = res?;
+
+    let mut send_msgs: Vec<CosmosMsg> = vec![];
+    for (token, shares) in participant_shares {
+        let mut pool = DRIP_POOLS.load(deps.storage, token.clone()).unwrap();
+        let withdraw_amount = pool.tokens_from_shares(shares);
+        pool.remove_tokens_and_shares(shares);
+        send_msgs.push(
+            pool.send_tokens_message(withdraw_amount, &info.sender)? 
+        );
+        DRIP_POOLS.save(deps.storage, token.clone(), &pool)?;
+        PARTICIPANTS_SHARES.remove(deps.storage, (&info.sender, token));
+    }
+
+    
+    let res = Response::new()
+        .add_attribute("action", "withdraw_tokens")
+        .add_messages(send_msgs);
+    Ok(res) 
 }
+
+//==================================================================================================
+// QUERY 
+//==================================================================================================
 
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
