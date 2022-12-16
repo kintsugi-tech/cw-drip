@@ -81,13 +81,8 @@ impl DripPool {
 
     /// Compute tokens associated to a certain amount of shares
     pub fn tokens_from_shares(&self, shares: Uint128) -> Uint128 {
-        let residual_amount = match self.drip_token {
-            DripToken::Native { denom: _, amount } => amount,
-            DripToken::CW20 { address: _, amount } => amount,
-        };
-
         shares
-            .multiply_ratio(residual_amount, self.issued_shares)
+            .multiply_ratio(self.withdrawable_tokens, self.issued_shares)
     }
 
     pub fn send_tokens_message(

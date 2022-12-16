@@ -213,6 +213,25 @@ impl TestLab {
         resp
     }
 
+    pub fn query_balance(&self, address: String) -> Uint128 {
+        let resp = self.app
+            .wrap()
+            .query_balance(address, self.native.clone())
+            .unwrap();
+        resp.amount
+    }
+
+    pub fn query_cw20_balance(&self, address: String) -> Uint128 {
+        let resp: cw20::BalanceResponse = self.app
+            .wrap()
+            .query_wasm_smart(
+                self.cw20_address.clone(), 
+                &cw20::Cw20QueryMsg::Balance { address }
+            )
+            .unwrap();
+        resp.balance
+    }
+
     pub fn get_validators(self) -> Vec<Validator> {
         let resp = self.app
             .wrap()
@@ -283,6 +302,15 @@ impl TestLab {
                 epochs_number
             }, 
             funds, 
+        )
+    }
+
+    pub fn withdraw_tokens(&mut self, address: Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            address, 
+            Addr::unchecked(self.drip_address.clone()), 
+            &ExecuteMsg::WithdrawTokens {}, 
+            &[]
         )
     }
 

@@ -40,11 +40,14 @@ pub enum ContractError {
     NoShares {},
 
     #[error("the minimum number of epochs is 1")]
-    LessThanOneEpoch { },
+    LessThanOneEpoch {},
 
     #[error("drip pool should be unactive")]
     InvalidActiveDripPool,
 
     #[error("drip pool has not enough funds to distribute")]
     DripPoolHasNotENoughFunds,
+
+    #[error("no tokens to withdraw")]
+    NoTokensToWithdraw {},
 }

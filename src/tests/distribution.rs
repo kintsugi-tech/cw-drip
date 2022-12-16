@@ -162,7 +162,6 @@ pub fn distribute_single() {
         assert_eq!(pool.withdrawable_tokens, Uint128::new(1_000));
     }
 
-
     let resp = test_lab
         .query_participant_shares(PAR1.to_string());
     assert_eq!(resp.shares.len(), 1)

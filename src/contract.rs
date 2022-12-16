@@ -330,6 +330,10 @@ fn execute_withdraw_tokens(
         .collect();
     let participant_shares = res?;
 
+    if participant_shares.is_empty() {
+        return Err(ContractError::NoTokensToWithdraw {})
+    }
+
     let mut send_msgs: Vec<CosmosMsg> = vec![];
     for (token, shares) in participant_shares {
         let mut pool = DRIP_POOLS.load(deps.storage, token.clone()).unwrap();
