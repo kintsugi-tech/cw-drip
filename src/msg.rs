@@ -2,9 +2,14 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Uint128, Addr, Deps, Env};
 use cw20::Cw20QueryMsg;
 
-use crate::{state::{Config, DripPool, DripPoolShares, DripToken}, ContractError};
+use crate::{
+    state::{Config, DripPool, DripToken}, 
+    ContractError
+};
+
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// Address of the chain's staking module
     /// Minimum native tokens staked to participate
     pub min_staking_amount: Uint128,
     /// Duration of a single epoch in seconds for all drip pools. 
@@ -17,6 +22,14 @@ pub struct InstantiateMsg {
 pub enum UncheckedDripToken {
     Native { denom: String, initial_amount: Uint128 },
     Cw20 { address: String, initial_amount: Uint128 }
+}
+
+#[cw_serde]
+pub struct DripPoolShares {
+    /// Denom or address of the token
+    pub token: String,
+    /// Total amount of shares
+    pub total_shares: Uint128
 }
 
 #[cw_serde]
@@ -72,7 +85,7 @@ pub struct ConfigResponse {
 
 #[cw_serde]
 pub struct ParticipantSharesResponse {
-    pub shares: Vec<DripPoolShares>
+    pub shares: Vec<(String, Uint128)>
 }
 
 #[cw_serde]

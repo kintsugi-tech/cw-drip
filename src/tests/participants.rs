@@ -18,7 +18,26 @@ fn participant() {
         .unwrap_err()
         .downcast()
         .unwrap();
-    assert_eq!(err, ContractError::AlreadyParticipant {  })
+    assert_eq!(err, ContractError::AlreadyParticipant {})
+}
+
+#[test]
+fn remove_participant() {
+    let mut test_lab = LabBuilder::new().build();
+
+    let participant = Addr::unchecked(PAR1);
+    let _resp = test_lab.add_participant(participant.clone()).unwrap();
+    let _resp = test_lab.remove_participant(participant).unwrap();
+
+    let resp = test_lab.query_participants();
+    assert_eq!(resp.participants.len(), 0);
+
+    // Remove non existing participant will not cause errors
+    let _resp = test_lab.remove_participant(Addr::unchecked("blablabla"))
+        .unwrap();
+
+    let resp = test_lab.query_participants();
+    assert_eq!(resp.participants.len(), 0); 
 }
 
 #[test]

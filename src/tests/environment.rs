@@ -1,11 +1,19 @@
 use anyhow::Result as AnyResult;
 
-use cosmwasm_std::{Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal, Delegation};
+use cosmwasm_std::{
+    Addr, Coin, Validator, FullDelegation, Uint128, Empty, CosmosMsg, StakingMsg, Decimal, 
+    Delegation
+};
 use cw20::{Cw20Coin};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, SudoMsg, BankSudo,};
+use cw_multi_test::{
+    App, AppResponse, Contract, ContractWrapper, Executor, StakingInfo, SudoMsg, BankSudo
+};
 pub use cw_multi_test::StakeKeeper;
 
-use crate::msg::{InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, UncheckedDripToken, DripTokensResponse, ParticipantsResponse, ParticipantSharesResponse};
+use crate::msg::{
+    InstantiateMsg, DripPoolResponse, QueryMsg, DripPoolsResponse, ExecuteMsg, UncheckedDripToken, 
+    DripTokensResponse, ParticipantsResponse, ParticipantSharesResponse
+};
 
 pub const PAR1: &str = "participant1";
 pub const PAR2: &str = "participant2";
@@ -51,7 +59,7 @@ pub fn cw20_contract() -> Box<dyn Contract<Empty>> {
     Box::new(contract)
 }
 
-// Helper function to create a Validator structure
+// Helper function to create a Validator structure with default values
 fn create_default_validator(validator: &str) -> Validator {
     return Validator {
         address: validator.to_string(),
@@ -60,7 +68,6 @@ fn create_default_validator(validator: &str) -> Validator {
         max_change_rate: Default::default(),
     }
 }
-
 
 impl LabBuilder {
     
@@ -71,25 +78,26 @@ impl LabBuilder {
             contract_owner: "dao".to_string(),
             // Native staking token denom
             native_token_denom: "ujuno".to_string(),
-            validators: vec!["validator1".to_string(), "validator2".to_string(), "validator3".to_string()],
+            validators: vec![
+                "validator1".to_string(), "validator2".to_string(), "validator3".to_string()
+            ]
         }    
     }
 
-    // Adds to the environment required objects and params
+    // Adds to the environment objects and params
     pub fn build(self) -> TestLab {
         // Bootstrapping the mocked blockchain
         let mut app: App = App::default();
 
-        // Owner of the drip contract
         let owner = Addr::unchecked(self.contract_owner.clone());
 
         let drip_id = app.store_code(drip_contract());
 
-        // Instantiate drip contract
         let init_drip_msg = InstantiateMsg {
             min_staking_amount: MIN_STAKING,
             epoch_duration: EPOCH,
         };
+
         let drip_addr = app.instantiate_contract (
             drip_id, 
             owner.clone(), 
@@ -106,7 +114,11 @@ impl LabBuilder {
             |router, api, storage| -> AnyResult<()> {
                 router.staking.setup(
                     storage,
-                    StakingInfo { bonded_denom: self.native_token_denom.clone(), unbonding_time: 60, apr: Decimal::percent(20) }
+                    StakingInfo { 
+                        bonded_denom: self.native_token_denom.clone(), 
+                        unbonding_time: 60, 
+                        apr: Decimal::percent(20) 
+                    }
                 ).unwrap();
 
                 self.validators
@@ -125,7 +137,6 @@ impl LabBuilder {
             owner: owner.to_string(),
             native: self.native_token_denom,
             drip_address: drip_addr.to_string(),
-            // Initialized as string None to make test easier 
             cw20_address: "None".to_string(), 
         }
 
@@ -134,11 +145,8 @@ impl LabBuilder {
 
 }
 
-
-
 impl TestLab {
 
-    // Create
     pub fn init_cw20(mut self, initial_balances: Vec<Cw20Coin>) -> Self {
 
         let cw20_id = self.app.store_code(cw20_contract());
@@ -264,7 +272,7 @@ impl TestLab {
         token_info: UncheckedDripToken, 
         tokens_per_epoch: Uint128, 
         epochs_number: u64, 
-        funds: &[Coin]
+        funds: &[Coin],
     ) -> AnyResult<AppResponse> { 
         self.app.execute_contract(
             Addr::unchecked(self.owner.clone()),

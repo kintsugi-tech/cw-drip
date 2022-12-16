@@ -19,3 +19,15 @@ The state of the contract is composed of 5 components as depicted in the schema 
 1. `PARTICIPANTS` + `PARTICIPANTS_SHARES`: these two stores are used to manage different but related behaviours of the smart contract. `PARTICIPANTS` is used to manage only the list of actual addresses participanting to the distributions. If someone wants to participate it will be added to this list and if someone wants to remove participation it will be removed from this list. During shares distribution only address in thsi store will be accounted for. It is still important to consider address that has received shares but are no more participants. For this reason a second auxiliary object as been used: `PARTICIPANTS_SHARES`. This store manage the shares of every address that has ever participate to the distribution. With this two-objects configuration we can easily access the shares associated to an account that would like to withdraw and at the same time we can iterate just through active participants during shares distribution.
 
 2. `DRIP_POOLS` & `DripPoolsShares` are connected with a string which is the address of the Cw20 contract or the native denome instead of a number. In this way we don't need a counter to instantiate a new pool and makes the indexing of a specific pool faster.
+
+# Tests
+
+* [x] `drip_pool_basic_checks`: only owner can create a drip pool and no drip pool with 0 epochs allowed;
+* [x] `zero_initial_amount`: creating a drip pool with 0 tokens is not allowed (Native + Cw20);
+* [x] `no_funded_contract`: creating a drip pool when the contract has less tokens than the required
+for the distribution (Native + Cw20);
+* [x] `wrong_tokens_amount`: creating a drip pool with $\frac{initial\_amount}{epochs} \neq tokens\_per\_epoch$ is not allowed (Native + Cw20);
+* [x] `funded_contract`: create a drip pool (Native + Cw20);
+
+* [ ] Create participant A, distribute shares, remove participation of A and than create again the
+participation of A.

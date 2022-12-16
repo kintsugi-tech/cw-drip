@@ -1,9 +1,65 @@
-use cosmwasm_std::{Uint128};
+use cosmwasm_std::{Uint128, Addr};
 use cw20::Cw20Coin;
+use cw_multi_test::Executor;
 
-use crate::{msg::UncheckedDripToken, ContractError, state::{DripPool, DripToken}};
+use crate::{msg::{UncheckedDripToken, ExecuteMsg}, ContractError, state::{DripPool, DripToken}};
 
 use super::environment::LabBuilder;
+
+#[test]
+pub fn drip_pool_basic_checks() {
+    let mut test_lab = LabBuilder::new().build();
+    let drip_addr = test_lab.drip_address.clone();
+    let native = test_lab.native.clone();
+    test_lab = test_lab
+        .sudo_mint_1000(drip_addr.clone(),native.clone(), 1000u128)
+        .init_cw20(vec![
+            Cw20Coin {
+                address:drip_addr.clone(), 
+                amount: Uint128::new(1_000_000)
+            }]
+        );
+
+    let err: ContractError = test_lab.app.execute_contract(
+        Addr::unchecked("pippo"),
+        Addr::unchecked(test_lab.drip_address.clone()),
+        &ExecuteMsg::CreateDripPool { 
+            token_info: UncheckedDripToken::Native {
+                denom: test_lab.native.to_string(), 
+                initial_amount: Uint128::new(10_000) 
+            },
+            tokens_per_epoch: Uint128::zero(),
+            epochs_number: 10u64
+
+        }, 
+        &[], 
+    )
+    .unwrap_err()
+    .downcast()
+    .unwrap();
+        
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    let err: ContractError = test_lab.app.execute_contract(
+        Addr::unchecked(test_lab.owner),
+        Addr::unchecked(test_lab.drip_address.clone()),
+        &ExecuteMsg::CreateDripPool { 
+            token_info: UncheckedDripToken::Native {
+                denom: test_lab.native.to_string(), 
+                initial_amount: Uint128::new(10_000) 
+            },
+            tokens_per_epoch: Uint128::zero(),
+            epochs_number: 0u64
+
+        }, 
+        &[], 
+    )
+    .unwrap_err()
+    .downcast()
+    .unwrap();
+        
+    assert_eq!(err, ContractError::LessThanOneEpoch {})
+}
 
 #[test]
 fn zero_initial_amount() {
@@ -45,7 +101,7 @@ fn zero_initial_amount() {
         .downcast()
         .unwrap();
 
-    assert_eq!(err, ContractError::ZeroTokenPool {  })
+    assert_eq!(err, ContractError::ZeroTokenPool {})
     
 }
 
@@ -53,6 +109,8 @@ fn zero_initial_amount() {
 fn no_funded_contract() {
     let mut test_lab = LabBuilder::new().build();
     let owner = test_lab.owner.clone(); 
+    // Cw20 tokens available to contract owner not to drip contract. This will cause the error
+    // later
     test_lab = test_lab.init_cw20(
         vec![Cw20Coin {
             address: owner,
@@ -74,7 +132,12 @@ fn no_funded_contract() {
     .downcast()
     .unwrap();
 
-    assert_eq!(err, ContractError::NoFundedContract {token: test_lab.native.to_string(), amount: Uint128::new(1_000_000)});
+    assert_eq!(
+        err, 
+        ContractError::NoFundedContract {
+            token: test_lab.native.to_string(), amount: Uint128::new(1_000_000)
+        }
+    );
    
     // With cw20 pool
     let cw20_addr = test_lab.cw20_address.clone();
@@ -91,7 +154,12 @@ fn no_funded_contract() {
     .downcast()
     .unwrap();
 
-    assert_eq!(err, ContractError::NoFundedContract {token: test_lab.cw20_address, amount: Uint128::new(1_000_000)});
+    assert_eq!(
+        err, 
+        ContractError::NoFundedContract {
+            token: test_lab.cw20_address, amount: Uint128::new(1_000_000)
+        }
+    );
 
 }
 
@@ -159,7 +227,7 @@ fn funded_contract() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint_1000(drip_addr.clone(),native.clone(), 1000u128)
+        .sudo_mint_1000(drip_addr.clone(),native.clone(), 1_000u128)
         .init_cw20(vec![
             Cw20Coin {
                 address:drip_addr.clone(), 
@@ -191,14 +259,14 @@ fn funded_contract() {
         Some(DripPool {
             drip_token: DripToken::Native { 
                 denom: test_lab.native.to_string(), 
-                initial_amount: Uint128::new(10_000) 
+                amount: Uint128::new(10_000) 
             },
-            actual_amount: Uint128::new(10_000),
-            tokens_to_withdraw: Uint128::new(0),
+            initial_amount: Uint128::new(10_000),
+            withdrawable_tokens: Uint128::new(0),
             tokens_per_epoch: Uint128::new(1_000),
             issued_shares: Uint128::zero(),
             epochs_number: 10u64,
-            current_epoch: 0u64,
+            epoch: 0u64,
         })
     ); 
    
@@ -226,15 +294,15 @@ fn funded_contract() {
         resp.drip_pool, 
         Some(DripPool {
             drip_token: DripToken::CW20 { 
-                address: cw20_addr, 
-                initial_amount: Uint128::new(1_000_000) 
+                address: Addr::unchecked(cw20_addr), 
+                amount: Uint128::new(1_000_000) 
             },
-            actual_amount: Uint128::new(1_000_000),
-            tokens_to_withdraw: Uint128::new(0),
+            initial_amount: Uint128::new(1_000_000),
+            withdrawable_tokens: Uint128::new(0),
             tokens_per_epoch: Uint128::new(100_000),
             issued_shares: Uint128::zero(),
             epochs_number: 10u64,
-            current_epoch: 0u64,
+            epoch: 0u64,
         })
     ); 
  
