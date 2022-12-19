@@ -36,7 +36,7 @@ pub enum UncheckedDripToken {
 
 This message requires to specify the token and the total amount of the distribution along with the tokens per epoch and number of epoch. Since the number of epochs times the tokens per epoch must be equal to the total initial amount, the message impose the sender to double check the pool specifications.
 
-In order to distribute the shares a `ExecuteMsg::DistributeShares` tx must be sent to the contract. There is no constraint on who can trigger the distribution. To better understand how tokens will be distributed let's make an example with a drip pool of 200$TOKEN distributed in 2 epochs. This means 100$TOKEN distributed every epoch. Let's consider the first two distribution epoch with a minimum required staked tokens of 10.
+In order to distribute the shares a `ExecuteMsg::DistributeShares` tx must be sent to the contract. There is no constraint on who can trigger the distribution. To better understand how tokens will be distributed let's make an example with a drip pool of 200\$TOKEN distributed in 2 epochs. This means 100$TOKEN distributed every epoch. Let's consider the first two distribution epoch with a minimum required staked tokens of 10.
 
 | EPOCH | Bob staking | Alice staking | Bob shares | Alice shares | Total shares | Distributed tokens |
 | ----- | ----------- | ------------- | ---------- | ------------ | ------------ | ------------------ |
@@ -49,7 +49,7 @@ $$ \text{Bob \$TOKEN} = floor\Big(\frac{32}{47} \times 200\Big) = 136 $$
 
 $$ \text{Alice \$TOKEN} = floor\Big(\frac{15}{47} \times 200\Big) = 63 $$
 
-The remaining $200 - 136 - 63 = 1$$TOKEN will be withdrawable from the owner of the contract.
+The remaining $200 - 136 - 63 = 1$\$TOKEN will be withdrawable from the owner of the contract.
 
 ## What is missing
 
