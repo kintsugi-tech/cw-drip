@@ -35,7 +35,7 @@ pub struct DripPoolShares {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Participate to the drip distribution
-    Participate {},
+   Participate {},
     /// Remove participation to the drip distribution. No more shares
     /// will be accrued.
     RemoveParticipation {},
