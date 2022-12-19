@@ -49,7 +49,7 @@ $$ \text{Bob TOKEN} = floor\Big(\frac{32}{47} \times 200\Big) = 136 $$
 
 $$ \text{Alice TOKEN} = floor\Big(\frac{15}{47} \times 200\Big) = 63 $$
 
-The remaining $200 - 136 - 63 = 1$TOKEN will be withdrawable from the owner of the contract.
+The remaining 200 - 136 - 63 = 1TOKEN will be withdrawable from the owner of the contract.
 
 ## What is missing
 
@@ -61,37 +61,32 @@ The following messages handler are still to be implemented:
 
 * `SendShares {}`: transfer the accrued shares to another address.
 
-🚧 🚧 🚧 WORK IN PROGRESS 🚧 🚧 🚧
-## State
-
-The state of the contract is composed of 5 components as depicted in the schema below:
-
-![caption](/assets/state.png "Contract state")
-
-* `Config`: stores the smart contract configuration info.
-
-* `PARTICIPANTS`: stores the vector of the participants addresses.
-
-* `Participants Shares`: stores users shares for each (active & unactive) drip pool indexed on the user address.
-
-## Design
-
-1. `PARTICIPANTS` + `PARTICIPANTS_SHARES`: these two stores are used to manage different but related behaviours of the smart contract. `PARTICIPANTS` is used to manage only the list of actual addresses participanting to the distributions. If someone wants to participate it will be added to this list and if someone wants to remove participation it will be removed from this list. During shares distribution only address in thsi store will be accounted for. It is still important to consider address that has received shares but are no more participants. For this reason a second auxiliary object as been used: `PARTICIPANTS_SHARES`. This store manage the shares of every address that has ever participate to the distribution. With this two-objects configuration we can easily access the shares associated to an account that would like to withdraw and at the same time we can iterate just through active participants during shares distribution.
-
-2. `DRIP_POOLS` & `DripPoolsShares` are connected with a string which is the address of the Cw20 contract or the native denome instead of a number. In this way we don't need a counter to instantiate a new pool and makes the indexing of a specific pool faster.
-
 ## Tests
+
+### `participants.rs`
+
+* [x] `participant`: single participation and error if already participant;
+
+* [x] `remove_participant`: remove participant;
+
+* [x] `participants`: add and remove multiple participants;
+
+### `drip_pools.rs`
 
 * [x] `drip_pool_basic_checks`: only owner can create a drip pool and no drip pool with 0 epochs allowed;
 
 * [x] `zero_initial_amount`: creating a drip pool with 0 tokens is not allowed (Native + Cw20);
 
-* [x] `no_funded_contract`: creating a drip pool when the contract has less tokens than the required
-for the distribution (Native + Cw20);
+* [x] `drip_pool_already_exists`: cannot create a pool with a token already in distribution by another active pool;
 
 * [x] `wrong_tokens_amount`: creating a drip pool with $\frac{initial\_amount}{epochs} \neq tokens\_per\_epoch$ is not allowed (Native + Cw20);
 
+* [x] `no_funded_contract`: creating a drip pool when the contract has less tokens than the required
+for the distribution (Native + Cw20);
+
 * [x] `funded_contract`: create a drip pool (Native + Cw20);
+
+### `distribution.rs`
 
 * [x] `zero_active_pool`: error if no active pool;
 
@@ -101,13 +96,21 @@ for the distribution (Native + Cw20);
 
 * [x] `distribute_single`: shares are distributed correctly for a single user and a single drip pool for the first epoch;
 
+* [x] `multiple_drip_pools`: shares are distributed correctly with 2 pools and a single user;
+
 * [x] `distribute_multiple`: shares are distributed correctly to 3 users and after the last epoch the pool is no more active;
 
-* [x] `multiple_drip_pools`: shares are distributed correctly with 2 pools and a single user;
+### `withdraw.rs`
+
+* [x] `withdraw_single`: a single user can withdraw from a single pool;
+
+* [x] `withdraw_multiple`: a single user can withdraw from multiple pools;
+
+### Missing
 
 * [ ] Create participant A, distribute shares, remove participation of A and than create again the
 participation of A.
 
-# Feedback
+## Feedback
 
 Please, feel free to send any feedback to stepyt@mib.tech or contributed with PR(s).
