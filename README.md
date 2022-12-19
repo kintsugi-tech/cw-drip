@@ -15,7 +15,7 @@ pub struct InstantiateMsg {
 
 Once instantiated the contract, community members can decide to participate in the drip by sending a `ExecuteMsg::Participate {}` tx. The partecipation to the drip distribution means a participation to every drip pool. It is not possibile to decide to participate just to specific distributions. Participants can decide to exit from the distribution in any time by sending a `ExecuteMsg::RemoveParticipation {}` tx.
 
-The creation of a drip pool can be made only by the owner of the contract and is subordinate to the presence of the distributed tokens inside the contract. This means that, in order to create a 1_000_000_000 $JUNO distribution, the contract must be the onwer of 1_000_000_000 $JUNO. The creation of a drip pool can be made by sending the following tx:
+The creation of a drip pool can be made only by the owner of the contract and is subordinate to the presence of the distributed tokens inside the contract. This means that, in order to create a $1\_000\_000\_000$\$JUNO distribution, the contract must be the onwer of $1_000_000_000$\$JUNO. The creation of a drip pool can be made by sending the following tx:
 
 ```rust
 ExecuteMsg:: CreateDripPool {
@@ -36,7 +36,7 @@ pub enum UncheckedDripToken {
 
 This message requires to specify the token and the total amount of the distribution along with the tokens per epoch and number of epoch. Since the number of epochs times the tokens per epoch must be equal to the total initial amount, the message impose the sender to double check the pool specifications.
 
-In order to distribute the shares a `ExecuteMsg::DistributeShares` tx must be sent to the contract. There is no constraint on who can trigger the distribution. To better understand how tokens will be distributed let's make an example with a drip pool of 200\$TOKEN distributed in 2 epochs. This means 100$TOKEN distributed every epoch. Let's consider the first two distribution epoch with a minimum required staked tokens of 10.
+In order to distribute the shares a `ExecuteMsg::DistributeShares` tx must be sent to the contract. There is no constraint on who can trigger the distribution. To better understand how tokens will be distributed let's make an example with a drip pool of $200$\$TOKEN distributed in $2$ epochs. This means $100$\$TOKEN distributed every epoch. Let's consider the first two distribution epoch with a minimum required staked tokens of $10$.
 
 | EPOCH | Bob staking | Alice staking | Bob shares | Alice shares | Total shares | Distributed tokens |
 | ----- | ----------- | ------------- | ---------- | ------------ | ------------ | ------------------ |
