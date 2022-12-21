@@ -98,11 +98,27 @@ pub fn execute_add_participant(
     deps: DepsMut,
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
-    // Add the non participant sender to participants
+    let config = CONFIG.load(deps.storage)?;
+    let delegations = deps.querier.query_all_delegations(info.sender.clone())?;
+
     PARTICIPANTS.update(deps.storage, |mut participants| {
         if participants.contains(&info.sender) {
             return Err(ContractError::AlreadyParticipant {});
         }
+
+        // Compute total $JUNO delegated by current address
+        let eligible_delegations = delegations
+            .iter()
+            .map(|delegation| delegation.amount.amount)
+            .filter(|amount| amount >= &config.min_staking_amount)
+            .count();
+
+        if eligible_delegations == 0 {
+            return Err(ContractError::MinimumDelegationNotSatisfied {
+                min_staked: config.min_staking_amount,
+            });
+        }
+
         participants.push(info.sender.clone());
         Ok(participants)
     })?;
@@ -220,14 +236,14 @@ fn execute_distribute_shares(
         for participant in participants {
             let delegations = deps.querier.query_all_delegations(participant.clone())?;
 
-            // TODO: add filter to remove micro delegations?
             // Compute total $JUNO delegated by current address
             let total_staked: Uint128 = delegations
                 .iter()
                 .map(|delegation| delegation.amount.amount)
+                .filter(|amount| amount > &config.min_staking_amount)
                 .sum();
 
-            if total_staked >= config.min_staking_amount {
+            if total_staked != Uint128::zero() {
                 update_participant_shares(
                     &mut deps,
                     &participant,
@@ -235,6 +251,11 @@ fn execute_distribute_shares(
                     total_staked,
                 )?;
                 emitted_shares += total_staked;
+            } else {
+                PARTICIPANTS.update(deps.storage, |mut participants| -> StdResult<_> {
+                    participants.retain(|address| *address != participant);
+                    Ok(participants)
+                })?;
             }
         }
 

@@ -52,4 +52,7 @@ pub enum ContractError {
 
     #[error("no tokens to withdraw")]
     NoTokensToWithdraw {},
+
+    #[error("the minimum amount of staking is not met: [{min_staked}]")]
+    MinimumDelegationNotSatisfied { min_staked: Uint128 },
 }
