@@ -7,7 +7,8 @@ This is a minimal implementation of a __Community DAO Incentive Contract__. The 
 1. [Building](#building)
 2. [Testing](#testing)
 3. [How it works](#how-it-works)
-4. [Feedback](#feedback)
+4. [Workflow](#workflow)
+5. [Feedback](#feedback)
 
 ## Building
 
@@ -120,13 +121,20 @@ To better understand how tokens are distributed let's make an example with a dri
 | 1     | 5           | 12            | 0          | 12           | 12           | 100                |
 | 2     | 15          | 20            | 15         | 12 + 20 = 32 | 32 + 15 = 47 | 100 + 100 = 200    |
 
-At the end of these distributions, we will have:
+At the end of these distributions, the TOKEN the two user will have are:
 
-$$ \text{Bob}: \bigg\lfloor\frac{32}{47} \times 200\bigg\rfloor = 136 \: \text{TOKEN}$$
+$$ \text{Bob}: \bigg\lfloor\frac{32}{47} \times 200\bigg\rfloor = 136$$
 
-$$ \text{Alice}: \bigg\lfloor\frac{15}{47} \times 200\bigg\rfloor= 63 \: \text{TOKEN}$$
+$$ \text{Alice}: \bigg\lfloor\frac{15}{47} \times 200\bigg\rfloor= 63$$
 
 The remaining $200 - 136 - 63 = 1$ TOKEN may be withdrawn from the contract owner.
+
+## Workflow
+
+Below you can se a standard workflow of how `cw-drip` is designed to work:
+
+![workflow](./assets/workflow.png)
+
 ## What is missing
 
 The following messages handler are still to be implemented:
