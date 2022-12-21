@@ -240,7 +240,7 @@ fn execute_distribute_shares(
             let total_staked: Uint128 = delegations
                 .iter()
                 .map(|delegation| delegation.amount.amount)
-                .filter(|amount| amount > &config.min_staking_amount)
+                .filter(|amount| amount >= &config.min_staking_amount)
                 .sum();
 
             if total_staked != Uint128::zero() {
