@@ -56,12 +56,18 @@ Considered tests are described below
   * [x] `withdraw_single`: a single user can withdraw from a single pool
   * [x] `withdraw_multiple`: a single user can withdraw from multiple pools
 
+* missing:
+  * [ ] check that a participant who reduces the staking below the minimum is removed during distribution.
+
 ## How it works
 
-Any user interested in receiving tokens have to send a tx for the participation in the distribution. The contract will distribute shares to participants that fullfill a minimum requirement on native tokens staked every epoch. Every participant can decide to burn its shares to withdraw distributed tokens.
+### [TLDR]
 
+Any user interested in receiving tokens has to send a tx to participate in the distribution. The contract will distribute shares to participants that fulfill a minimum requirement on native tokens staked every epoch. Every participant can decide to burn their shares to withdraw distributed tokens.
 
-The owner of the contract will be the sender of the `InstantiateMsg` tx. During the instantiation must be provided parameters common to every distribtuion. They are the minimum required staked tokens and the duration of a single epoch expressed in seconds. The staked tokens of every participant are computed summing up all delegations made by the address.
+### Details
+
+The contract owner will be the sender of the `InstantiateMsg` tx:
 
 ```rust
 pub struct InstantiateMsg {
@@ -70,15 +76,27 @@ pub struct InstantiateMsg {
 }
 ```
 
-Once instantiated the contract, community members can decide to participate in the drip by sending a `ExecuteMsg::Participate {}` tx. The partecipation to the drip distribution means a participation to every drip pool. It is not possibile to decide to participate just to specific distributions. Participants can decide to exit from the distribution in any time by sending a `ExecuteMsg::RemoveParticipation {}` tx.
+During the instantiation parameters common to every distribution must be provided. They are:
 
-The creation of a drip pool can be made only by the owner of the contract and is subordinated to the presence of the distributed tokens inside the contract. This means that, in order to create a 1M WYND distribution, the contract must be the onwer of 1M WYND. The creation of a drip pool can be made by sending the following tx:
+* `min_staking_amount`: the minimum required staked tokens
+
+* `epoch_duration`: the duration of a single epoch expressed in seconds.
+
+Only delegations higher than `min_staking_amount` are considered.
+
+Once instantiated the contract, community members can decide to participate in the drip by sending an `ExecuteMsg::Participate {}` tx. Participation in the drip distribution means participation in every drip pool. It is not possible to decide to participate just in selected distributions. Participants can decide to exit from the distribution at any time by sending an  `ExecuteMsg::RemoveParticipation {}` tx.
+
+A drip pool can be created only by the contract owner and is subordinated to the presence of the distributed tokens inside the contract. This means that, to create a 1M WYND distribution, the contract must be the owner of 1M WYND. A drip pool can be created by sending the following tx:
 
 ```rust
-ExecuteMsg::CreateDripPool {
-    token_info: UncheckedDripToken,
-    tokens_per_epoch: Uint128,
-    epochs_number: u64,
+pub enum ExecuteMsg {
+    ...
+    CreateDripPool {
+        token_info: UncheckedDripToken,
+        tokens_per_epoch: Uint128,
+        epochs_number: u64,
+    }
+    ...
 }
 ```
 
@@ -91,23 +109,24 @@ pub enum UncheckedDripToken {
 }
 ```
 
-This message requires to specify the token and the total amount of the distribution along with the tokens per epoch and number of epoch. Since the number of epochs times the tokens per epoch must be equal to the total initial amount, the message imposes the sender to double check the pool specifications.
+This message requires to specifying the token and the total amount of the distribution along with the tokens per epoch and the number of epochs. Since the number of epochs times the tokens per epoch must be equal to the total initial amount, the message imposes the sender to double-check the pool specifications.
 
-In order to distribute the shares a `ExecuteMsg::DistributeShares` tx must be sent to the contract. There is no constraint on who can trigger the distribution. To better understand how tokens will be distributed let's make an example with a drip pool of 200TOKEN distributed in 2 epochs. This means 100TOKEN distributed every epoch. Let's consider the first two distribution epoch with a minimum required staked tokens of 10.
+In order to distribute shares an `ExecuteMsg::DistributeShares` tx must be sent to the contract. Any user that received shares can decide to burn them to withdraw the associated tokens through the `ExecuteMsg::WithdrawTokens` tx. Anyone can trigger the distribution.
+
+To better understand how tokens are distributed let's make an example with a drip pool of 200 TOKEN distributed in 2 epochs. This means 100 TOKEN distributed every epoch. Let's consider the first two distributions with 10 TOKEN as a minimum staked requirement.
 
 | Epoch | Bob staking | Alice staking | Bob shares | Alice shares | Total shares | Distributed tokens |
 | ----- | ----------- | ------------- | ---------- | ------------ | ------------ | ------------------ |
 | 1     | 5           | 12            | 0          | 12           | 12           | 100                |
 | 2     | 15          | 20            | 15         | 12 + 20 = 32 | 32 + 15 = 47 | 100 + 100 = 200    |
 
-At the end of this distribution, we will have:
+At the end of these distributions, we will have:
 
-$$ \text{Bob}: floor\Big(\frac{32}{47} \times 200\Big) = 136 \text{TOKEN}$$
+$$ \text{Bob}: \bigg\lfloor\frac{32}{47} \times 200\bigg\rfloor = 136 \: \text{TOKEN}$$
 
-$$ \text{Alice}: floor\Big(\frac{15}{47} \times 200\Big) = 63 \text{TOKEN}$$
+$$ \text{Alice}: \bigg\lfloor\frac{15}{47} \times 200\bigg\rfloor= 63 \: \text{TOKEN}$$
 
-The remaining 200 - 136 - 63 = 1TOKEN will be withdrawable from the owner of the contract.
-
+The remaining $200 - 136 - 63 = 1$ TOKEN may be withdrawn from the contract owner.
 ## What is missing
 
 The following messages handler are still to be implemented:
@@ -117,8 +136,6 @@ The following messages handler are still to be implemented:
 * `RemoveDripPool {}`: remove an active pool;
 
 * `SendShares {}`: transfer the accrued shares to another address.
-
-
 
 ## Feedback
 
