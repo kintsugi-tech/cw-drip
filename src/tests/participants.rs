@@ -1,7 +1,9 @@
 use cosmwasm_std::Addr;
 
-use crate::{tests::environment::{PAR1, PAR2, PAR3, LabBuilder}, ContractError};
-
+use crate::{
+    tests::lab::{LabBuilder, PAR1, PAR2, PAR3},
+    ContractError,
+};
 
 #[test]
 fn participant() {
@@ -14,7 +16,8 @@ fn participant() {
     assert_eq!(resp.participants.len(), 1);
     assert_eq!(resp.participants[0], participant);
 
-    let err: ContractError = test_lab.add_participant(participant.clone())
+    let err: ContractError = test_lab
+        .add_participant(participant.clone())
         .unwrap_err()
         .downcast()
         .unwrap();
@@ -33,11 +36,12 @@ fn remove_participant() {
     assert_eq!(resp.participants.len(), 0);
 
     // Remove non existing participant will not cause errors
-    let _resp = test_lab.remove_participant(Addr::unchecked("blablabla"))
+    let _resp = test_lab
+        .remove_participant(Addr::unchecked("blablabla"))
         .unwrap();
 
     let resp = test_lab.query_participants();
-    assert_eq!(resp.participants.len(), 0); 
+    assert_eq!(resp.participants.len(), 0);
 }
 
 #[test]
@@ -49,10 +53,13 @@ fn participants() {
 
     let participant2 = Addr::unchecked(PAR2);
     let _resp = test_lab.add_participant(participant2.clone()).unwrap();
-    
+
     let resp = test_lab.query_participants();
     assert_eq!(resp.participants.len(), 2);
-    assert_eq!(resp.participants, vec![participant1.clone(), participant2.clone()]);
+    assert_eq!(
+        resp.participants,
+        vec![participant1.clone(), participant2.clone()]
+    );
 
     let _resp = test_lab.remove_participant(participant1);
 
@@ -60,6 +67,8 @@ fn participants() {
     let _resp = test_lab.add_participant(participant3.clone()).unwrap();
     let resp = test_lab.query_participants();
     assert_eq!(resp.participants.len(), 2);
-    assert_eq!(resp.participants, vec![participant2.clone(), participant3.clone()]);
-
-} 
+    assert_eq!(
+        resp.participants,
+        vec![participant2.clone(), participant3.clone()]
+    );
+}

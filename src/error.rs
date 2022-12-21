@@ -11,7 +11,6 @@ pub enum ContractError {
     Unauthorized {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-
     #[error("sender is already a participant")]
     AlreadyParticipant {},
 
@@ -31,7 +30,10 @@ pub enum ContractError {
     ZeroActiveDripPool {},
 
     #[error("initial tokens amount [{tokens_amount}] does not coincide with epochs_number X tokens_per_epoch: [{total_tokens}]")]
-    WrongTokensAmount { tokens_amount: Uint128, total_tokens: Uint128},
+    WrongTokensAmount {
+        tokens_amount: Uint128,
+        total_tokens: Uint128,
+    },
 
     #[error("wait for distribution time")]
     NoDistributionTime {},

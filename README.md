@@ -1,8 +1,65 @@
-# cw-drip
+# CosmWasm Drip
 
-This is a minimal implementation of a Community DAO Incentive Contract. The contract will allow to distribute any native or cw-20 token to the community via a linear vesting. Any user interested in receiving tokens have to send a tx for the participation in the distribution. The contract will distribute shares to participants that fullfill a minimum requirement on native tokens staked every epoch. Every participant can decide to burn its shares to withdraw distributed tokens.
+This is a minimal implementation of a __Community DAO Incentive Contract__. The contract allows any _native_ or _cw20_ token to be distributed to the community in epochs.
+
+## Content
+
+1. [Building](#building)
+2. [Testing](#testing)
+3. [How it works](#how-it-works)
+4. [Feedback](#feedback)
+
+## Building
+
+To compile the contract you have first to install [Docker](https://docs.docker.com/get-docker/). Then, from the root, run:
+
+```shell
+scripts/optimze_build.sh
+```
+
+This uses [cosmwasm rust optimizer](https://github.com/CosmWasm/rust-optimizer) to produce an optimized `.wasm` in the `./artifacts`folder.
+
+## Testing
+
+Tests are contained in the folder `./test/` and make use of the lib [cw_multi_test](https://docs.rs/cw-multi-test/latest/cw_multi_test/). The file `./tests/lab.rs` contains a `class` with helper methods used to initialize the test environment.
+
+Tests can be executed with:
+
+```shell
+cargo test
+```
+
+Considered tests are described below
+
+* `tests::participants::`
+  * [x] `participant`: single participation and error if already participant
+  * [x] `remove_participant`: remove participant
+  * [x] `participants`: add and remove multiple participants
+
+* `tests::drip_pools::`
+  * [x] `drip_pool_basic_checks`: only owner can create a drip pool and no drip pool with 0 epochs allowed
+  * [x] `zero_initial_amount`: creating a drip pool with 0 tokens is not allowed
+  * [x] `drip_pool_already_exists`: cannot create a pool with a token already in distribution by another active pool
+  * [x] `wrong_tokens_amount`: error if the specified amounts does not coincide.
+  * [x] `no_funded_contract`: cannot create a drip pool when the contract has less tokens than those to be distributed
+  * [x] `funded_contract`: properly create a drip pool
+
+* `tests::distribution::`
+  * [x] `zero_active_pool`: cannot distribute if there are no active pool
+  * [x] `no_distribution_time`: cannot distribute before distribution time
+  * [x] `no_min_staking`: no shares distribution if minimum staking is not satisfied
+  * [x] `distribute_single`: shares are distributed correctly for a single user and a single drip pool for the first epoch
+  * [x] `multiple_drip_pools`: shares are distributed correctly with 2 pools and a single user
+  * [x] `distribute_multiple`: shares are distributed correctly to 3 users and after the last epoch the pool is no more active
+
+* `tests::withdraw::`
+  * [x] `withdraw_single`: a single user can withdraw from a single pool
+  * [x] `withdraw_multiple`: a single user can withdraw from multiple pools
 
 ## How it works
+
+Any user interested in receiving tokens have to send a tx for the participation in the distribution. The contract will distribute shares to participants that fullfill a minimum requirement on native tokens staked every epoch. Every participant can decide to burn its shares to withdraw distributed tokens.
+
 
 The owner of the contract will be the sender of the `InstantiateMsg` tx. During the instantiation must be provided parameters common to every distribtuion. They are the minimum required staked tokens and the duration of a single epoch expressed in seconds. The staked tokens of every participant are computed summing up all delegations made by the address.
 
@@ -15,7 +72,7 @@ pub struct InstantiateMsg {
 
 Once instantiated the contract, community members can decide to participate in the drip by sending a `ExecuteMsg::Participate {}` tx. The partecipation to the drip distribution means a participation to every drip pool. It is not possibile to decide to participate just to specific distributions. Participants can decide to exit from the distribution in any time by sending a `ExecuteMsg::RemoveParticipation {}` tx.
 
-The creation of a drip pool can be made only by the owner of the contract and is subordinated to the presence of the distributed tokens inside the contract. This means that, in order to create a 1_000_000_000JUNO distribution, the contract must be the onwer of 1_000_000_000JUNO. The creation of a drip pool can be made by sending the following tx:
+The creation of a drip pool can be made only by the owner of the contract and is subordinated to the presence of the distributed tokens inside the contract. This means that, in order to create a 1M WYND distribution, the contract must be the onwer of 1M WYND. The creation of a drip pool can be made by sending the following tx:
 
 ```rust
 ExecuteMsg::CreateDripPool {
@@ -45,9 +102,9 @@ In order to distribute the shares a `ExecuteMsg::DistributeShares` tx must be se
 
 At the end of this distribution, we will have:
 
-$$ \text{Bob TOKEN} = floor\Big(\frac{32}{47} \times 200\Big) = 136 $$
+$$ \text{Bob}: floor\Big(\frac{32}{47} \times 200\Big) = 136 \text{TOKEN}$$
 
-$$ \text{Alice TOKEN} = floor\Big(\frac{15}{47} \times 200\Big) = 63 $$
+$$ \text{Alice}: floor\Big(\frac{15}{47} \times 200\Big) = 63 \text{TOKEN}$$
 
 The remaining 200 - 136 - 63 = 1TOKEN will be withdrawable from the owner of the contract.
 
@@ -61,56 +118,8 @@ The following messages handler are still to be implemented:
 
 * `SendShares {}`: transfer the accrued shares to another address.
 
-## Tests
 
-### `participants.rs`
-
-* [x] `participant`: single participation and error if already participant;
-
-* [x] `remove_participant`: remove participant;
-
-* [x] `participants`: add and remove multiple participants;
-
-### `drip_pools.rs`
-
-* [x] `drip_pool_basic_checks`: only owner can create a drip pool and no drip pool with 0 epochs allowed;
-
-* [x] `zero_initial_amount`: creating a drip pool with 0 tokens is not allowed (Native + Cw20);
-
-* [x] `drip_pool_already_exists`: cannot create a pool with a token already in distribution by another active pool;
-
-* [x] `wrong_tokens_amount`: creating a drip pool with $\frac{initial\_amount}{epochs} \neq tokens\_per\_epoch$ is not allowed (Native + Cw20);
-
-* [x] `no_funded_contract`: creating a drip pool when the contract has less tokens than the required
-for the distribution (Native + Cw20);
-
-* [x] `funded_contract`: create a drip pool (Native + Cw20);
-
-### `distribution.rs`
-
-* [x] `zero_active_pool`: error if no active pool;
-
-* [x] `no_distribution_time`: cannot distribute before distribution time;
-
-* [x] `no_min_staking`: if no minimum staking for stakers no shares issued;
-
-* [x] `distribute_single`: shares are distributed correctly for a single user and a single drip pool for the first epoch;
-
-* [x] `multiple_drip_pools`: shares are distributed correctly with 2 pools and a single user;
-
-* [x] `distribute_multiple`: shares are distributed correctly to 3 users and after the last epoch the pool is no more active;
-
-### `withdraw.rs`
-
-* [x] `withdraw_single`: a single user can withdraw from a single pool;
-
-* [x] `withdraw_multiple`: a single user can withdraw from multiple pools;
-
-### Missing
-
-* [ ] Create participant A, distribute shares, remove participation of A and than create again the
-participation of A.
 
 ## Feedback
 
-Please, feel free to send any feedback to stepyt@mib.tech or contributed with PR(s).
+Please, feel free to send any feedback to <stepyt@mib.tech> or with PR(s).
