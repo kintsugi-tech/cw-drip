@@ -28,9 +28,9 @@ pub fn no_distribution_time() {
     let native = test_lab.native.clone();
     test_lab = test_lab
         .sudo_mint_1000(drip_addr.clone(), native.clone(), 100u128)
-        .sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128)
+        .sudo_mint_1000(PAR1.to_string(), native, 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -65,7 +65,7 @@ pub fn no_min_staking() {
         .sudo_mint_1000(drip_addr.clone(), native.clone(), 100u128)
         .sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -112,7 +112,7 @@ pub fn no_min_staking() {
 
     let _resp = test_lab.distribute_shares().unwrap();
 
-    let resp = test_lab.query_drip_pool(native.clone());
+    let resp = test_lab.query_drip_pool(native);
     assert_eq!(
         resp.drip_pool.map(|pool| pool.issued_shares).unwrap(),
         Uint128::zero()
@@ -128,7 +128,7 @@ pub fn distribute_single() {
         .sudo_mint_1000(drip_addr.clone(), native.clone(), 100u128)
         .sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -144,7 +144,7 @@ pub fn distribute_single() {
     );
 
     let participant1 = Addr::unchecked(PAR1);
-    let _resp = test_lab.add_participant(participant1.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant1).unwrap();
 
     // With native pool
     let _resp = test_lab
@@ -163,7 +163,7 @@ pub fn distribute_single() {
 
     let _resp = test_lab.distribute_shares().unwrap();
 
-    let resp = test_lab.query_drip_pool(native.clone());
+    let resp = test_lab.query_drip_pool(native);
     if let Some(pool) = resp.drip_pool {
         assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(9_000));
         assert_eq!(pool.issued_shares, Uint128::new(1_000_000));
@@ -185,7 +185,7 @@ pub fn distribute_multiple() {
         .sudo_mint_1000(PAR2.to_string(), native.clone(), 2_000u128)
         .sudo_mint_1000(PAR3.to_string(), native.clone(), 3_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -217,13 +217,13 @@ pub fn distribute_multiple() {
     );
 
     let participant1 = Addr::unchecked(PAR1);
-    let _resp = test_lab.add_participant(participant1.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant1).unwrap();
 
     let participant2 = Addr::unchecked(PAR2);
-    let _resp = test_lab.add_participant(participant2.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant2).unwrap();
 
     let participant3 = Addr::unchecked(PAR3);
-    let _resp = test_lab.add_participant(participant3.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant3).unwrap();
 
     // With native pool
     let _resp = test_lab
@@ -293,7 +293,7 @@ pub fn distribute_multiple() {
         assert_eq!(pool.withdrawable_tokens, Uint128::new(10_000));
     }
 
-    let resp = test_lab.query_drip_pool(native.clone());
+    let resp = test_lab.query_drip_pool(native);
     if let Some(pool) = resp.drip_pool {
         assert_eq!(pool.drip_token.get_available_amount(), Uint128::new(0));
         assert_eq!(pool.issued_shares, Uint128::new(10 * 6_000_000));
@@ -320,7 +320,7 @@ pub fn multiple_drip_pools() {
         .sudo_mint_1000(drip_addr.clone(), native.clone(), 100u128)
         .sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -336,7 +336,7 @@ pub fn multiple_drip_pools() {
     );
 
     let participant1 = Addr::unchecked(PAR1);
-    let _resp = test_lab.add_participant(participant1.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant1).unwrap();
 
     // With native pool
     let _resp = test_lab
@@ -355,7 +355,7 @@ pub fn multiple_drip_pools() {
 
     let _resp = test_lab.distribute_shares().unwrap();
 
-    let resp = test_lab.query_drip_pool(native.clone());
+    let resp = test_lab.query_drip_pool(native);
     assert_eq!(
         resp.drip_pool.map(|pool| pool.issued_shares).unwrap(),
         shares

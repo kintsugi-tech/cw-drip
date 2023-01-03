@@ -145,6 +145,8 @@ The following messages handler are still to be implemented:
 
 * `SendShares {}`: transfer the accrued shares to another address.
 
+##
+
 ## Feedback
 
 Please, feel free to send any feedback to <stepyt@mib.tech> or with PR(s).

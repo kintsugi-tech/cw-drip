@@ -57,12 +57,12 @@ pub fn cw20_contract() -> Box<dyn Contract<Empty>> {
 
 // Helper function to create a Validator structure with default values
 fn create_default_validator(validator: &str) -> Validator {
-    return Validator {
+    Validator {
         address: validator.to_string(),
         commission: Default::default(),
         max_commission: Default::default(),
         max_change_rate: Default::default(),
-    };
+    }
 }
 
 impl LabBuilder {
@@ -194,8 +194,7 @@ impl TestLab {
         amount: Coin,
     ) -> AppResponse {
         let msg = StakingMsg::Delegate { validator, amount };
-        let resp = self.app.execute(sender, CosmosMsg::Staking(msg)).unwrap();
-        resp
+        self.app.execute(sender, CosmosMsg::Staking(msg)).unwrap()
     }
 
     pub fn query_participants(&self) -> ParticipantsResponse {

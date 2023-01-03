@@ -1,7 +1,7 @@
 use cosmwasm_std::{Addr, Coin, Uint128};
 
 use crate::{
-    tests::lab::{LabBuilder, PAR1, PAR2, PAR3, MIN_STAKING},
+    tests::lab::{LabBuilder, MIN_STAKING, PAR1, PAR2, PAR3},
     ContractError,
 };
 
@@ -13,22 +13,28 @@ fn participant() {
 
     test_lab = test_lab.sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128);
 
-    let err: ContractError = test_lab.add_participant(participant.clone())
+    let err: ContractError = test_lab
+        .add_participant(participant.clone())
         .unwrap_err()
         .downcast()
         .unwrap();
 
-    assert_eq!(err, ContractError::MinimumDelegationNotSatisfied { min_staked: MIN_STAKING });
+    assert_eq!(
+        err,
+        ContractError::MinimumDelegationNotSatisfied {
+            min_staked: MIN_STAKING
+        }
+    );
 
     _ = test_lab.create_delegation(
         Addr::unchecked(PAR1),
         "validator1".to_string(),
         Coin {
-            denom: native.clone(),
+            denom: native,
             amount: Uint128::new(1_000_000),
         },
     );
-    
+
     let _resp = test_lab.add_participant(participant.clone()).unwrap();
 
     let resp = test_lab.query_participants();
@@ -40,7 +46,7 @@ fn participant() {
     assert_eq!(resp.participants[0], participant);
 
     let err: ContractError = test_lab
-        .add_participant(participant.clone())
+        .add_participant(participant)
         .unwrap_err()
         .downcast()
         .unwrap();
@@ -60,7 +66,7 @@ fn remove_participant() {
         Addr::unchecked(PAR1),
         "validator1".to_string(),
         Coin {
-            denom: native.clone(),
+            denom: native,
             amount: Uint128::new(1_000_000),
         },
     );
@@ -124,12 +130,12 @@ fn participants() {
     let _resp = test_lab.remove_participant(participant1);
 
     let participant3 = Addr::unchecked(PAR3);
-    
+
     _ = test_lab.create_delegation(
         Addr::unchecked(PAR3),
         "validator1".to_string(),
         Coin {
-            denom: native.clone(),
+            denom: native,
             amount: Uint128::new(1_000_000),
         },
     );
@@ -137,8 +143,5 @@ fn participants() {
     let _resp = test_lab.add_participant(participant3.clone()).unwrap();
     let resp = test_lab.query_participants();
     assert_eq!(resp.participants.len(), 2);
-    assert_eq!(
-        resp.participants,
-        vec![participant2.clone(), participant3.clone()]
-    );
+    assert_eq!(resp.participants, vec![participant2, participant3]);
 }

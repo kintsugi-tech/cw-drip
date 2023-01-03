@@ -16,9 +16,9 @@ pub fn drip_pool_basic_checks() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint_1000(drip_addr.clone(), native.clone(), 1000u128)
+        .sudo_mint_1000(drip_addr.clone(), native, 1000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -174,9 +174,9 @@ fn wrong_tokens_amount() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint_1000(drip_addr.clone(), native.clone(), 1000u128)
+        .sudo_mint_1000(drip_addr.clone(), native, 1000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000),
         }]);
 
@@ -234,9 +234,9 @@ fn funded_contract() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint_1000(drip_addr.clone(), native.clone(), 1_000u128)
+        .sudo_mint_1000(drip_addr.clone(), native, 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -320,9 +320,9 @@ fn drip_pool_already_exists() {
     let drip_addr = test_lab.drip_address.clone();
     let native = test_lab.native.clone();
     test_lab = test_lab
-        .sudo_mint_1000(drip_addr.clone(), native.clone(), 1000u128)
+        .sudo_mint_1000(drip_addr.clone(), native, 1000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 

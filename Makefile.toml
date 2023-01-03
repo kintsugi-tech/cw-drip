@@ -1,0 +1,47 @@
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--check"]
+
+[tasks.crates-audit]
+install_crate = "cargo-audit"
+command = "cargo"
+args = ["audit"]
+
+[tasks.clippy]
+install_crate = "clippy"
+command = "cargo"
+args = ["clippy", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.schema]
+command = "cargo"
+args = ["schema"]
+
+[tasks.tests]
+command = "cargo"
+args = ["test"]
+
+[tasks.rust-optimizer]
+script = """
+if [[ $(arch) == "arm64" ]]; then
+    echo "Using arm64 optimizer."
+    image="cosmwasm/rust-optimizer-arm64:0.12.11"
+else
+    echo "Using standard optimizer"
+    image="cosmwasm/rust-optimizer:0.12.11"
+fi
+docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  ${image}
+"""
+
+[tasks.basic-flow]
+dependencies = [
+    "format",
+    "crates-audit",
+    "clippy",
+    "schema",
+    "tests",
+    "rust-optimizer"
+]

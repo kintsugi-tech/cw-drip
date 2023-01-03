@@ -1,1 +1,1 @@
-f6fc605ac7107e49e98034fe12fd833a46323158fbae82b04b2533d98e66c9d5  ./target/wasm32-unknown-unknown/release/cw_drip.wasm
+25d9dcc0520662e9999b66638c12ca79519f63b924967c4dc795bbddbe3bf720  ./target/wasm32-unknown-unknown/release/cw_drip.wasm

@@ -14,7 +14,7 @@ pub fn withdraw_single() {
         .sudo_mint_1000(drip_addr.clone(), native.clone(), 100u128)
         .sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -24,13 +24,13 @@ pub fn withdraw_single() {
         Addr::unchecked(PAR1),
         "validator1".to_string(),
         Coin {
-            denom: native.clone(),
+            denom: native,
             amount: shares,
         },
     );
 
     let participant1 = Addr::unchecked(PAR1);
-    let _resp = test_lab.add_participant(participant1.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant1).unwrap();
 
     // With native pool
     let _resp = test_lab
@@ -74,7 +74,7 @@ pub fn withdraw_multiple() {
         .sudo_mint_1000(drip_addr.clone(), native.clone(), 100u128)
         .sudo_mint_1000(PAR1.to_string(), native.clone(), 1_000u128)
         .init_cw20(vec![Cw20Coin {
-            address: drip_addr.clone(),
+            address: drip_addr,
             amount: Uint128::new(1_000_000),
         }]);
 
@@ -84,13 +84,13 @@ pub fn withdraw_multiple() {
         Addr::unchecked(PAR1),
         "validator1".to_string(),
         Coin {
-            denom: native.clone(),
+            denom: native,
             amount: shares,
         },
     );
 
     let participant1 = Addr::unchecked(PAR1);
-    let _resp = test_lab.add_participant(participant1.clone()).unwrap();
+    let _resp = test_lab.add_participant(participant1).unwrap();
 
     // With native pool
     let _resp = test_lab
